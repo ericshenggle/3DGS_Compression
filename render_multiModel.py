@@ -41,7 +41,7 @@ def render_set(model_path, name, iteration, views, gaussians, pipeline, backgrou
     for idx, view in enumerate(tqdm(views, desc="Rendering progress")):
         _result = render_multiModel(view, gaussians, pipeline, background, combinedDebug=combinedDebug)
         rendering = _result["render"]
-        avg_points = avg_points * idx / (idx + 1) + _result["points"] / (idx + 1)
+        avg_points = avg_points * idx / (idx + 1) + _result["num_points"] / (idx + 1)
         gt = view.original_image[0:3, :, :]
 
         psnr_metric.append(psnr(rendering, gt))
