@@ -88,10 +88,10 @@ def render_sets(dataset : ModelParams, iteration : int, pipeline : PipelineParam
         train_metrics, test_metrics = {}, {}
 
         if not skip_train:
-            train_points, train_metrics = render_set(model_path, "train", scene.loaded_iter, scene.getTrainCameras(), gaussians.values(), pipeline, background, combinedDebug=combinedDebug)
+            train_points, train_metrics = render_set(model_path, "train", scene.loaded_iter, scene.getTrainCameras(), list(gaussians.values()), pipeline, background, combinedDebug=combinedDebug)
 
         if not skip_test:
-            test_points, test_metrics = render_set(model_path, "test", scene.loaded_iter, scene.getTestCameras(), gaussians.values(), pipeline, background, combinedDebug=combinedDebug)
+            test_points, test_metrics = render_set(model_path, "test", scene.loaded_iter, scene.getTestCameras(), list(gaussians.values()), pipeline, background, combinedDebug=combinedDebug)
 
         with open(os.path.join(model_path, "points.txt"), "w") as f:
             for path in gaussians.keys():
