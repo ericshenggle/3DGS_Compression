@@ -129,10 +129,8 @@ def render_multiModel(viewpoint_camera, pc : list, pipe, bg_color : torch.Tensor
     # Base on the view matrix, filter the gaussians point in model_1 that far from the camera in a threshold
     # and use the point in model_2 that far from the camera to combine with
 
-    distances = torch.sqrt(((pc[0].get_xyz - viewpoint_camera.camera_center) ** 2).sum(dim=1))
-    max_distance = distances.max()
-
-    split_threshold = [max_distance / len(pc) * i for i in range(1, len(pc))]
+    all_distances = torch.cat([torch.sqrt(((pc_i.get_xyz - viewpoint_camera.camera_center) ** 2).sum(dim=1)) for pc_i in pc])
+    percentiles = [torch.quantile(all_distances, i / len(pc)) for i in range(len(pc) + 1)]
 
     mean3D = []
     mean2D = []
@@ -149,8 +147,12 @@ def render_multiModel(viewpoint_camera, pc : list, pipe, bg_color : torch.Tensor
         mean3D_tmp = pc[i].get_xyz
         distances_tmp = torch.sqrt(((mean3D_tmp - viewpoint_camera.camera_center) ** 2).sum(dim=1))
         if i == 0:
-            
-        choose_mask = distances_tmp <= split_threshold[i] if i == 0 else distances_tmp > split_threshold[i - 1] and distances_tmp <= split_threshold[i]
+            choose_mask = (distances_tmp < percentiles[1])
+        elif i == len(pc) - 1:
+            choose_mask = (distances_tmp >= percentiles[i])
+        else:
+            choose_mask = (distances_tmp >= percentiles[i]) & (distances_tmp < percentiles[i + 1])
+
         print("Model ", i, " has original points: ", len(pc[i].get_xyz), " and after filter: ", len(pc[i].get_xyz[choose_mask]))
         mean3D.append(mean3D_tmp[choose_mask])
         mean2D.append(torch.zeros_like(mean3D[-1], dtype=mean3D[-1].dtype, requires_grad=True, device="cuda") + 0)
@@ -187,6 +189,7 @@ def render_multiModel(viewpoint_camera, pc : list, pipe, bg_color : torch.Tensor
 
     # Concatenate the list of tensors to single tensor
     mean3D = torch.cat(mean3D, dim=0)
+    num_points = mean3D.shape[0]
     screenspace_points = torch.cat(mean2D, dim=0)
     try:
         screenspace_points.retain_grad()
@@ -215,4 +218,5 @@ def render_multiModel(viewpoint_camera, pc : list, pipe, bg_color : torch.Tensor
     return {"render": rendered_image,
             "viewspace_points": screenspace_points,
             "visibility_filter" : radii > 0,
-            "radii": radii}
+            "radii": radii,
+            "num_points": num_points}
