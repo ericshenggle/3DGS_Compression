@@ -14,7 +14,7 @@ from scene import Scene
 import os
 from tqdm import tqdm
 from os import makedirs
-from gaussian_renderer import render_multiModel
+from gaussian_renderer import render_multiModel, render
 import torchvision
 from utils.general_utils import safe_state
 from argparse import ArgumentParser
@@ -39,7 +39,7 @@ def render_set(model_path, name, iteration, views, gaussians, pipeline, backgrou
     lpips_metric = []
 
     for idx, view in enumerate(tqdm(views, desc="Rendering progress")):
-        _result = render_multiModel(view, gaussians, pipeline, background, combinedDebug=combinedDebug)
+        _result = render_multiModel(view, list(gaussians.values()), pipeline, background, combinedDebug=combinedDebug)
         rendering = _result["render"]
         avg_points = avg_points * idx / (idx + 1) + _result["num_points"] / (idx + 1)
         gt = view.original_image[0:3, :, :]
@@ -48,14 +48,19 @@ def render_set(model_path, name, iteration, views, gaussians, pipeline, backgrou
         ssim_metric.append(ssim(rendering, gt))
         lpips_metric.append(lpips(rendering, gt, net_type="vgg"))
 
-        torchvision.utils.save_image(rendering, os.path.join(render_path, '{0:05d}'.format(idx) + ".png"))
+        torchvision.utils.save_image(rendering, os.path.join(render_path, "combined", '{0:05d}'.format(idx) + ".png"))
         torchvision.utils.save_image(gt, os.path.join(gts_path, '{0:05d}'.format(idx) + ".png"))
 
     metrics = {
-        "psnr": torch.tensor(psnr_metric).mean().item(),
-        "ssim": torch.tensor(ssim_metric).mean().item(),
-        "lpips": torch.tensor(lpips_metric).mean().item()
+        "PSNR": torch.stack(psnr_metric).mean().item(),
+        "SSIM": torch.stack(ssim_metric).mean().item(),
+        "LPIPS": torch.stack(lpips_metric).mean().item()
     }
+
+    for key, value in metrics.items():
+        rendering = render(view, value, pipeline, background)["render"]
+        gt = view.original_image[0:3, :, :]
+        torchvision.utils.save_image(rendering, os.path.join(render_path, key, '{0:05d}'.format(idx) + ".png"))
 
     return avg_points, metrics
 
@@ -88,10 +93,10 @@ def render_sets(dataset : ModelParams, iteration : int, pipeline : PipelineParam
         train_metrics, test_metrics = {}, {}
 
         if not skip_train:
-            train_points, train_metrics = render_set(model_path, "train", scene.loaded_iter, scene.getTrainCameras(), list(gaussians.values()), pipeline, background, combinedDebug=combinedDebug)
+            train_points, train_metrics = render_set(model_path, "train", scene.loaded_iter, scene.getTrainCameras(), gaussians, pipeline, background, combinedDebug=combinedDebug)
 
         if not skip_test:
-            test_points, test_metrics = render_set(model_path, "test", scene.loaded_iter, scene.getTestCameras(), list(gaussians.values()), pipeline, background, combinedDebug=combinedDebug)
+            test_points, test_metrics = render_set(model_path, "test", scene.loaded_iter, scene.getTestCameras(), gaussians, pipeline, background, combinedDebug=combinedDebug)
 
         with open(os.path.join(model_path, "points.txt"), "w") as f:
             for path in gaussians.keys():
