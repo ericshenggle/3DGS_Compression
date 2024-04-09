@@ -25,12 +25,15 @@ from utils.loss_utils import ssim
 from lpipsPyTorch import lpips
 
 
-def render_set(model_path, name, iteration, views, gaussians, pipeline, background, combinedDebug=False):
+def render_set(model_path, name, iteration, views, gaussians, pipeline, background, combinedDebug, strategy):
     render_path = os.path.join(model_path, name, "renders")
     gts_path = os.path.join(model_path, name, "gt")
 
     makedirs(render_path, exist_ok=True)
     makedirs(gts_path, exist_ok=True)
+    makedirs(os.path.join(render_path, "combined"), exist_ok=True)
+    for key, value in gaussians.items():
+        makedirs(os.path.join(render_path, key), exist_ok=True)
 
     avg_points = 0
 
@@ -39,7 +42,7 @@ def render_set(model_path, name, iteration, views, gaussians, pipeline, backgrou
     lpips_metric = []
 
     for idx, view in enumerate(tqdm(views, desc="Rendering progress")):
-        _result = render_multiModel(view, list(gaussians.values()), pipeline, background, combinedDebug=combinedDebug)
+        _result = render_multiModel(view, list(gaussians.values()), pipeline, background, combinedDebug=combinedDebug, strategy=strategy)
         rendering = _result["render"]
         avg_points = avg_points * idx / (idx + 1) + _result["num_points"] / (idx + 1)
         gt = view.original_image[0:3, :, :]
@@ -57,65 +60,68 @@ def render_set(model_path, name, iteration, views, gaussians, pipeline, backgrou
         "LPIPS": torch.stack(lpips_metric).mean().item()
     }
 
-    for key, value in metrics.items():
-        rendering = render(view, value, pipeline, background)["render"]
-        gt = view.original_image[0:3, :, :]
-        torchvision.utils.save_image(rendering, os.path.join(render_path, key, '{0:05d}'.format(idx) + ".png"))
+    for key, value in gaussians.items():
+        for idx, view in enumerate(tqdm(views, desc="Rendering progress")):
+            rendering = render(view, value, pipeline, background)["render"]
+            gt = view.original_image[0:3, :, :]
+            torchvision.utils.save_image(rendering, os.path.join(render_path, key, '{0:05d}'.format(idx) + ".png"))
 
     return avg_points, metrics
 
-def render_sets(dataset : ModelParams, iteration : int, pipeline : PipelineParams, skip_train : bool, skip_test : bool, paths : list, combinedDebug : bool):
+def render_sets(dataset : ModelParams, iteration : int, pipeline : PipelineParams, skip_train : bool, skip_test : bool, paths : list, combinedDebug : bool, strategy : str):
     with torch.no_grad():
         scene = Scene(dataset, None, load_iteration=iteration, shuffle=False, unloadGaussians=True)
         gaussians = {}
         gaussians_temp = GaussianModel(dataset.sh_degree)
         gaussians_temp.load_ply(os.path.join(dataset.model_path, "point_cloud", "iteration_" + str(iteration), "point_cloud.ply"))
-        gaussians[dataset.model_path] = gaussians_temp
+        gaussians[os.path.basename(dataset.model_path)] = gaussians_temp
         for path in paths:
             gaussians_temp = GaussianModel(dataset.sh_degree)
             gaussians_temp.load_ply(os.path.join(path, "point_cloud", "iteration_" + str(iteration), "point_cloud.ply"))
-            gaussians[path] = gaussians_temp
+            gaussians[os.path.basename(path)] = gaussians_temp
 
         bg_color = [1,1,1] if dataset.white_background else [0, 0, 0]
         background = torch.tensor(bg_color, dtype=torch.float32, device="cuda")
 
 
-        p_model_path = os.path.dirname(dataset.model_path) + "_combined"
+        p_model_path = os.path.dirname(dataset.model_path) + "_combined_" + strategy
         new_model_path = os.path.basename(dataset.model_path)
         for path in paths:
             new_model_path += "_" + os.path.basename(path)
         model_path = os.path.join(p_model_path, new_model_path)
+        if combinedDebug:
+            model_path += "_debug"
 
         # sort the gaussians by the number of points
+        # if strategy == "fov":
+        #     gaussians = {k: v for k, v in sorted(gaussians.items(), key=lambda item: item[1].get_xyz.shape[0])}
+        # else:
+        #     gaussians = {k: v for k, v in sorted(gaussians.items(), key=lambda item: item[1].get_xyz.shape[0], reverse=True)}
         gaussians = {k: v for k, v in sorted(gaussians.items(), key=lambda item: item[1].get_xyz.shape[0], reverse=True)}
 
         train_points, test_points = 0, 0
         train_metrics, test_metrics = {}, {}
 
         if not skip_train:
-            train_points, train_metrics = render_set(model_path, "train", scene.loaded_iter, scene.getTrainCameras(), gaussians, pipeline, background, combinedDebug=combinedDebug)
+            train_points, train_metrics = render_set(model_path, "train", scene.loaded_iter, scene.getTrainCameras(), gaussians, pipeline, background, combinedDebug, strategy)
 
         if not skip_test:
-            test_points, test_metrics = render_set(model_path, "test", scene.loaded_iter, scene.getTestCameras(), gaussians, pipeline, background, combinedDebug=combinedDebug)
-
-        with open(os.path.join(model_path, "points.txt"), "w") as f:
-            for path in gaussians.keys():
-                f.write("Model: " + path + "\n")
-                f.write("Points: " + str(gaussians[path].get_xyz.shape[0]) + "\n")
-            f.write("\n")
-            f.write("Model Combined: " + model_path + "\n")
-            if not skip_train:
-                f.write("Train Average Points: " + str(train_points) + "\n")
-            if not skip_test:
-                f.write("Test Average Points: " + str(test_points) + "\n")
+            test_points, test_metrics = render_set(model_path, "test", scene.loaded_iter, scene.getTestCameras(), gaussians, pipeline, background, combinedDebug, strategy)
 
         with open(os.path.join(model_path, "metrics.txt"), "w") as f:
+            for key in gaussians.keys():
+                f.write("Model: " + key + "\n")
+                f.write("Points: " + str(gaussians[key].get_xyz.shape[0]) + "\n")
+            f.write("\n")
+            f.write("Model Combined: \n")
             if not skip_train:
+                f.write("Train Average Points: " + str(train_points) + "\n")
                 f.write("Train Metrics: \n")
                 for key, value in train_metrics.items():
                     f.write(key + ": " + str(value) + "\n")
                 f.write("\n")
             if not skip_test:
+                f.write("Test Average Points: " + str(test_points) + "\n")
                 f.write("Test Metrics: \n")
                 for key, value in test_metrics.items():
                     f.write(key + ": " + str(value) + "\n")
@@ -136,6 +142,7 @@ if __name__ == "__main__":
     parser.add_argument("--quiet", action="store_true")
     parser.add_argument("--model_paths", nargs="*", type=str, required=True, default=[])
     parser.add_argument("--combinedDebug", action="store_true")
+    parser.add_argument("--strategy", type=str, default="dist")
     args = get_combined_args(parser)
     print("Rendering " + args.model_path)
     print("Combined with " + str(args.model_paths))
@@ -143,7 +150,7 @@ if __name__ == "__main__":
     # Initialize system state (RNG)
     safe_state(args.quiet)
 
-    render_sets(model.extract(args), args.iteration, pipeline.extract(args), args.skip_train, args.skip_test, args.model_paths, args.combinedDebug)
+    render_sets(model.extract(args), args.iteration, pipeline.extract(args), args.skip_train, args.skip_test, args.model_paths, args.combinedDebug, args.strategy)
 
     # End time
     end_time = time.time()

@@ -14,6 +14,7 @@ import math
 from diff_gaussian_rasterization import GaussianRasterizationSettings, GaussianRasterizer
 from scene.gaussian_model import GaussianModel
 from utils.sh_utils import eval_sh
+from gaussian_renderer.strategy import *
 
 def render(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, scaling_modifier = 1.0, override_color = None):
     """
@@ -99,7 +100,7 @@ def render(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, 
             "visibility_filter" : radii > 0,
             "radii": radii}
 
-def render_multiModel(viewpoint_camera, pc : list, pipe, bg_color : torch.Tensor, scaling_modifier = 1.0, override_color = None, combinedDebug = False):
+def render_multiModel(viewpoint_camera, pc : list, pipe, bg_color : torch.Tensor, scaling_modifier = 1.0, override_color = None, combinedDebug = False, strategy=""):
     """
     Render the scene using multiple Gaussian models.    
     
@@ -126,46 +127,31 @@ def render_multiModel(viewpoint_camera, pc : list, pipe, bg_color : torch.Tensor
 
     rasterizer = GaussianRasterizer(raster_settings=raster_settings)
 
-    # Base on the view matrix, filter the gaussians point in model_1 that far from the camera in a threshold
-    # and use the point in model_2 that far from the camera to combine with
+    if strategy == "fov":
+        masks = foveated_selection(pc, viewpoint_camera)
+    else:
+        masks = distance_based_selection(pc, viewpoint_camera)
 
-    all_distances = torch.cat([torch.sqrt(((pc_i.get_xyz - viewpoint_camera.camera_center) ** 2).sum(dim=1)) for pc_i in pc])
-    percentiles = [torch.quantile(all_distances, i / len(pc)) for i in range(len(pc) + 1)]
+    mean3D, mean2D, opacity, scales, rotations, cov3D_precomp, shs, colors_precomp = [], [], [], [], [], [], [], []
 
-    mean3D = []
-    mean2D = []
-    opacity = []
-    scales = []
-    rotations = []
-    cov3D_precomp = []
-    shs = []
-    colors_precomp = []
-
-    for i in range(len(pc)):
+    for i, mask in enumerate(masks):
         if combinedDebug and i % 2 != 0:
             continue
         mean3D_tmp = pc[i].get_xyz
-        distances_tmp = torch.sqrt(((mean3D_tmp - viewpoint_camera.camera_center) ** 2).sum(dim=1))
-        if i == 0:
-            choose_mask = (distances_tmp < percentiles[1])
-        elif i == len(pc) - 1:
-            choose_mask = (distances_tmp >= percentiles[i])
-        else:
-            choose_mask = (distances_tmp >= percentiles[i]) & (distances_tmp < percentiles[i + 1])
 
-        print("Model ", i, " has original points: ", len(pc[i].get_xyz), " and after filter: ", len(pc[i].get_xyz[choose_mask]))
-        mean3D.append(mean3D_tmp[choose_mask])
+        print("Model ", i, " has original points: ", len(pc[i].get_xyz), " and after filter: ", len(pc[i].get_xyz[mask]))
+        mean3D.append(mean3D_tmp[mask])
         mean2D.append(torch.zeros_like(mean3D[-1], dtype=mean3D[-1].dtype, requires_grad=True, device="cuda") + 0)
-        opacity.append(pc[i].get_opacity[choose_mask])
+        opacity.append(pc[i].get_opacity[mask])
 
         scales_tmp = None
         rotations_tmp = None
         cov3D_precomp_tmp = None
         if pipe.compute_cov3D_python:
-            cov3D_precomp_tmp = pc[i].get_covariance(scaling_modifier)[choose_mask]
+            cov3D_precomp_tmp = pc[i].get_covariance(scaling_modifier)[mask]
         else:
-            scales_tmp = pc[i].get_scaling[choose_mask]
-            rotations_tmp = pc[i].get_rotation[choose_mask]
+            scales_tmp = pc[i].get_scaling[mask]
+            rotations_tmp = pc[i].get_rotation[mask]
 
         shs_tmp = None
         colors_precomp_tmp = None
@@ -175,9 +161,9 @@ def render_multiModel(viewpoint_camera, pc : list, pipe, bg_color : torch.Tensor
                 dir_pp = (pc[i].get_xyz - viewpoint_camera.camera_center.repeat(pc[i].get_features.shape[0], 1))
                 dir_pp_normalized = dir_pp/dir_pp.norm(dim=1, keepdim=True)
                 sh2rgb = eval_sh(pc[i].active_sh_degree, shs_view, dir_pp_normalized)
-                colors_precomp_tmp = torch.clamp_min(sh2rgb + 0.5, 0.0)[choose_mask]
+                colors_precomp_tmp = torch.clamp_min(sh2rgb + 0.5, 0.0)[mask]
             else:
-                shs_tmp = pc[i].get_features[choose_mask]
+                shs_tmp = pc[i].get_features[mask]
         else:
             colors_precomp_tmp = override_color
         
