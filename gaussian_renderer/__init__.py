@@ -106,7 +106,7 @@ def render_multiModel(viewpoint_camera, pc : list, pipe, bg_color : torch.Tensor
     
     Background tensor (bg_color) must be on GPU!
     """
-    assert len(pc) >= 2, "At least two Gaussian models must be provided for multi-model rendering."
+    assert len(pc) >= 1, "At least one Gaussian model must be provided for multi-model rendering."
  
     # Create zero tensor. We will use it to make pytorch return gradients of the 2D (screen-space) means\
 

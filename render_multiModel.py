@@ -12,6 +12,7 @@
 import torch
 from scene import Scene
 import os
+import csv
 from tqdm import tqdm
 from os import makedirs
 from gaussian_renderer import render_multiModel, render
@@ -25,15 +26,13 @@ from utils.loss_utils import ssim
 from lpipsPyTorch import lpips
 
 
-def render_set(model_path, name, iteration, views, gaussians, pipeline, background, combinedDebug, strategy):
-    render_path = os.path.join(model_path, name, "renders")
-    gts_path = os.path.join(model_path, name, "gt")
-
-    makedirs(render_path, exist_ok=True)
-    makedirs(gts_path, exist_ok=True)
-    makedirs(os.path.join(render_path, "combined"), exist_ok=True)
-    for key, value in gaussians.items():
-        makedirs(os.path.join(render_path, key), exist_ok=True)
+def render_set(model_path, name, iteration, views, gaussians, pipeline, background, combinedDebug, strategy, render_image=False):
+    render_dir_path = ''
+    if render_image:
+        render_dir_path = os.path.join(model_path, name, "combined")
+        makedirs(render_dir_path, exist_ok=True)
+    # for key, value in gaussians.items():
+    #     makedirs(os.path.join(model_path, key), exist_ok=True)
 
     avg_points = 0
 
@@ -51,24 +50,36 @@ def render_set(model_path, name, iteration, views, gaussians, pipeline, backgrou
         ssim_metric.append(ssim(rendering, gt))
         lpips_metric.append(lpips(rendering, gt, net_type="vgg"))
 
-        torchvision.utils.save_image(rendering, os.path.join(render_path, "combined", '{0:05d}'.format(idx) + ".png"))
-        torchvision.utils.save_image(gt, os.path.join(gts_path, '{0:05d}'.format(idx) + ".png"))
+        if render_image:
+            torchvision.utils.save_image(rendering, os.path.join(render_dir_path, '{0:05d}'.format(idx) + ".png"))
 
     metrics = {
-        "PSNR": torch.stack(psnr_metric).mean().item(),
-        "SSIM": torch.stack(ssim_metric).mean().item(),
-        "LPIPS": torch.stack(lpips_metric).mean().item()
+        f"{name}_PSNR": torch.stack(psnr_metric).mean().item(),
+        f"{name}_SSIM": torch.stack(ssim_metric).mean().item(),
+        f"{name}_LPIPS": torch.stack(lpips_metric).mean().item()
     }
 
-    for key, value in gaussians.items():
-        for idx, view in enumerate(tqdm(views, desc="Rendering progress")):
-            rendering = render(view, value, pipeline, background)["render"]
-            gt = view.original_image[0:3, :, :]
-            torchvision.utils.save_image(rendering, os.path.join(render_path, key, '{0:05d}'.format(idx) + ".png"))
+    # if render_image:
+    #     for key, value in gaussians.items():
+    #         for idx, view in enumerate(tqdm(views, desc="Rendering progress")):
+    #             rendering = render(view, value, pipeline, background)["render"]
+    #             gt = view.original_image[0:3, :, :]
+    #             torchvision.utils.save_image(rendering, os.path.join(model_path, key, '{0:05d}'.format(idx) + ".png"))
 
-    return avg_points, metrics
+    return int(avg_points), metrics
 
-def render_sets(dataset : ModelParams, iteration : int, pipeline : PipelineParams, skip_train : bool, skip_test : bool, paths : list, combinedDebug : bool, strategy : str):
+def render_gt(model_path, name, views):
+    render_dir_path = os.path.join(model_path, name)
+    makedirs(render_dir_path, exist_ok=True)
+
+    if len(os.listdir(render_dir_path)) > 0:
+        return
+
+    for idx, view in enumerate(tqdm(views, desc="Rendering progress")):
+        gt = view.original_image[0:3, :, :]
+        torchvision.utils.save_image(gt, os.path.join(render_dir_path, '{0:05d}'.format(idx) + ".png"))
+
+def render_sets(dataset : ModelParams, iteration : int, pipeline : PipelineParams, skip_train : bool, skip_test : bool, paths : list, combinedDebug : bool, strategy : str, render_image : bool):
     with torch.no_grad():
         scene = Scene(dataset, None, load_iteration=iteration, shuffle=False, unloadGaussians=True)
         gaussians = {}
@@ -92,6 +103,9 @@ def render_sets(dataset : ModelParams, iteration : int, pipeline : PipelineParam
         if combinedDebug:
             model_path += "_debug"
 
+        render_gt(os.path.join(p_model_path, "ground_truth"), "train", scene.getTrainCameras())
+        render_gt(os.path.join(p_model_path, "ground_truth"), "test", scene.getTestCameras())
+
         # sort the gaussians by the number of points
         # if strategy == "fov":
         #     gaussians = {k: v for k, v in sorted(gaussians.items(), key=lambda item: item[1].get_xyz.shape[0])}
@@ -103,28 +117,34 @@ def render_sets(dataset : ModelParams, iteration : int, pipeline : PipelineParam
         train_metrics, test_metrics = {}, {}
 
         if not skip_train:
-            train_points, train_metrics = render_set(model_path, "train", scene.loaded_iter, scene.getTrainCameras(), gaussians, pipeline, background, combinedDebug, strategy)
+            train_points, train_metrics = render_set(model_path, "train", scene.loaded_iter, scene.getTrainCameras(), gaussians, pipeline, background, combinedDebug, strategy, False)
 
         if not skip_test:
-            test_points, test_metrics = render_set(model_path, "test", scene.loaded_iter, scene.getTestCameras(), gaussians, pipeline, background, combinedDebug, strategy)
+            test_points, test_metrics = render_set(model_path, "test", scene.loaded_iter, scene.getTestCameras(), gaussians, pipeline, background, combinedDebug, strategy, render_image)
 
-        with open(os.path.join(model_path, "metrics.txt"), "w") as f:
+        file_path = os.path.join(p_model_path, "metrics.csv")
+        file_exists = os.path.isfile(file_path)
+
+        with open(file_path, "a", newline='') as csvfile:
+            fieldnames = ['model', 'train_points', 'train_PSNR', 'train_SSIM', 'train_LPIPS', 'test_points', 'test_PSNR', 'test_SSIM', 'test_LPIPS']
+    
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            if not file_exists:
+                writer.writeheader()
+    
             for key in gaussians.keys():
-                f.write("Model: " + key + "\n")
-                f.write("Points: " + str(gaussians[key].get_xyz.shape[0]) + "\n")
-            f.write("\n")
-            f.write("Model Combined: \n")
-            if not skip_train:
-                f.write("Train Average Points: " + str(train_points) + "\n")
-                f.write("Train Metrics: \n")
-                for key, value in train_metrics.items():
-                    f.write(key + ": " + str(value) + "\n")
-                f.write("\n")
-            if not skip_test:
-                f.write("Test Average Points: " + str(test_points) + "\n")
-                f.write("Test Metrics: \n")
-                for key, value in test_metrics.items():
-                    f.write(key + ": " + str(value) + "\n")
+                row_dict = {
+                    'model': key,
+                }
+                if not skip_train:
+                    row_dict['train_points'] = train_points
+                    for metric_key in train_metrics:
+                        row_dict[metric_key] = train_metrics[metric_key]
+                if not skip_test:
+                    row_dict['test_points'] = test_points
+                    for metric_key in test_metrics:
+                        row_dict[metric_key] = test_metrics[metric_key]
+                writer.writerow(row_dict)
    
 
 if __name__ == "__main__":
@@ -137,12 +157,13 @@ if __name__ == "__main__":
     model = ModelParams(parser, sentinel=True)
     pipeline = PipelineParams(parser)
     parser.add_argument("--iteration", default=30000, type=int)
-    parser.add_argument("--skip_train", action="store_true", default=True)
+    parser.add_argument("--skip_train", action="store_true")
     parser.add_argument("--skip_test", action="store_true")
     parser.add_argument("--quiet", action="store_true")
-    parser.add_argument("--model_paths", nargs="*", type=str, required=True, default=[])
+    parser.add_argument("--model_paths", nargs="*", type=str, default=[])
     parser.add_argument("--combinedDebug", action="store_true")
     parser.add_argument("--strategy", type=str, default="dist")
+    parser.add_argument("--render_image", action="store_true")
     args = get_combined_args(parser)
     print("Rendering " + args.model_path)
     print("Combined with " + str(args.model_paths))
@@ -150,7 +171,7 @@ if __name__ == "__main__":
     # Initialize system state (RNG)
     safe_state(args.quiet)
 
-    render_sets(model.extract(args), args.iteration, pipeline.extract(args), args.skip_train, args.skip_test, args.model_paths, args.combinedDebug, args.strategy)
+    render_sets(model.extract(args), args.iteration, pipeline.extract(args), args.skip_train, args.skip_test, args.model_paths, args.combinedDebug, args.strategy, args.render_image)
 
     # End time
     end_time = time.time()
