@@ -1,4 +1,5 @@
 import torch
+import math
 
 def distance_based_selection(pc, viewpoint_camera, overlap_ratio=0.1):
     """
@@ -43,7 +44,7 @@ def foveated_selection(pc, viewpoint_camera, overlap_ratio=0.1):
     :return: A list of masks, each corresponding to a point cloud in `pc`.
     """
     image_width, image_height = viewpoint_camera.image_width, viewpoint_camera.image_height
-    min_dimension = min(image_width, image_height)
+    min_dimension = math.sqrt(math.pow(image_width, 2) + math.pow(image_height, 2))
     max_radius = min_dimension / 2
     step_size = max_radius / len(pc) 
     fov_steps = [step_size * i for i in range(len(pc) + 1)]

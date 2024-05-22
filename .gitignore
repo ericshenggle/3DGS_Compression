@@ -1,10 +1,11 @@
 *.pyc
 .vscode
 output
-results/
 build/
 submodules/
 SIBR_viewers/
 tensorboard_3d
 screenshots
 *.out
+
+results/**/*

@@ -29,7 +29,7 @@ from lpipsPyTorch import lpips
 def render_set(model_path, name, iteration, views, gaussians, pipeline, background, combinedDebug, strategy, render_image=False):
     render_dir_path = ''
     if render_image:
-        render_dir_path = os.path.join(model_path, name, "combined")
+        render_dir_path = os.path.join(model_path, name)
         makedirs(render_dir_path, exist_ok=True)
     # for key, value in gaussians.items():
     #     makedirs(os.path.join(model_path, key), exist_ok=True)
@@ -131,20 +131,19 @@ def render_sets(dataset : ModelParams, iteration : int, pipeline : PipelineParam
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             if not file_exists:
                 writer.writeheader()
-    
-            for key in gaussians.keys():
-                row_dict = {
-                    'model': key,
-                }
-                if not skip_train:
-                    row_dict['train_points'] = train_points
-                    for metric_key in train_metrics:
-                        row_dict[metric_key] = train_metrics[metric_key]
-                if not skip_test:
-                    row_dict['test_points'] = test_points
-                    for metric_key in test_metrics:
-                        row_dict[metric_key] = test_metrics[metric_key]
-                writer.writerow(row_dict)
+
+            row_dict = {
+                'model': '_'.join(gaussians.keys()),
+            }
+            if not skip_train:
+                row_dict['train_points'] = train_points
+                for metric_key in train_metrics:
+                    row_dict[metric_key] = train_metrics[metric_key]
+            if not skip_test:
+                row_dict['test_points'] = test_points
+                for metric_key in test_metrics:
+                    row_dict[metric_key] = test_metrics[metric_key]
+            writer.writerow(row_dict)
    
 
 if __name__ == "__main__":
