@@ -1,5 +1,6 @@
 import torch
 import math
+from gaussian_renderer.utils import Sector3D, is_points_in_sector_3d
 
 def distance_based_selection(pc, viewpoint_camera, overlap_ratio=0.1):
     """
@@ -71,6 +72,52 @@ def foveated_selection(pc, viewpoint_camera, overlap_ratio=0.1):
 
         masks.append(mask)
     return masks
+
+def distFoveated_selection(pc, viewpoint_camera, overlap_ratio=0.1):
+    """
+    Select points based on their distance from the image center, simulating a foveated rendering effect.
+    
+    :param pc: A list of point clouds.
+    :param viewpoint_camera: The camera object containing camera center and other properties.
+    :return: A list of masks, each corresponding to a point cloud in `pc`.
+    """
+    image_width, image_height = viewpoint_camera.image_width, viewpoint_camera.image_height
+    all_distances = torch.cat([torch.sqrt(((pc[0].get_xyz - viewpoint_camera.camera_center) ** 2).sum(dim=1))])
+    percentiles = [torch.quantile(all_distances, i / len(pc)) for i in range(len(pc) + 1)]
+
+    # Get the direction vector of the camera
+    direction_vector = viewpoint_camera.world_view_transform.inverse()[:3, 2]
+    direction_vector = direction_vector / torch.norm(direction_vector)
+
+    sector = []
+    for i, _ in enumerate(pc):
+        center = viewpoint_camera.camera_center
+        # Add a small forward offset to center
+        center[2] += percentiles[i] / 10
+        radius = percentiles[i + 1]
+        height = percentiles[i + 1]
+        angle_range = (60, 120)
+        sector.append(Sector3D(center, radius, height, angle_range, direction_vector))
+
+    masks = []
+    for i, pc_i in enumerate(pc):
+        # Count the number of sectors that each point belongs to
+        counts = torch.zeros(pc_i.get_xyz.shape[0], dtype=torch.int32, device=viewpoint_camera.data_device)
+        for j in range(len(sector)):
+            counts += is_points_in_sector_3d(pc_i.get_xyz, sector[j]).to(torch.int32)
+        
+        # Select points that based on the number of sectors they belong to, i.e., the better the model, the more sectors it belongs to
+        mask = (counts == len(pc) - i)
+
+        # Additional masking to remove points outside the visible screen area
+        screen_positions = transform_points_to_screen_space(pc_i.get_xyz, viewpoint_camera)
+        within_bounds_x = (screen_positions[:, 0] >= 0) & (screen_positions[:, 0] <= image_width - 1)
+        within_bounds_y = (screen_positions[:, 1] >= 0) & (screen_positions[:, 1] <= image_height - 1)
+        mask &= (within_bounds_x & within_bounds_y)
+
+        masks.append(mask)
+    return masks
+
 
 def transform_points_to_screen_space(points, viewpoint_camera):
     """

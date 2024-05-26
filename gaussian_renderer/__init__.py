@@ -129,8 +129,10 @@ def render_multiModel(viewpoint_camera, pc : list, pipe, bg_color : torch.Tensor
 
     if strategy == "fov":
         masks = foveated_selection(pc, viewpoint_camera)
-    else:
+    elif strategy == "dist":
         masks = distance_based_selection(pc, viewpoint_camera)
+    elif strategy == "distFov":
+        masks = distFoveated_selection(pc, viewpoint_camera)
 
     mean3D, mean2D, opacity, scales, rotations, cov3D_precomp, shs, colors_precomp = [], [], [], [], [], [], [], []
 
