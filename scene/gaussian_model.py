@@ -216,16 +216,25 @@ class GaussianModel:
             l.append('rot_{}'.format(i))
         return l
 
-    def save_ply(self, path):
+    def save_ply(self, path, mask=None):
         mkdir_p(os.path.dirname(path))
-
-        xyz = self._xyz.detach().cpu().numpy()
-        normals = np.zeros_like(xyz)
-        f_dc = self._features_dc.detach().transpose(1, 2).flatten(start_dim=1).contiguous().cpu().numpy()
-        f_rest = self._features_rest.detach().transpose(1, 2).flatten(start_dim=1).contiguous().cpu().numpy()
-        opacities = self._opacity.detach().cpu().numpy()
-        scale = self._scaling.detach().cpu().numpy()
-        rotation = self._rotation.detach().cpu().numpy()
+        
+        if mask is not None:
+            xyz = self._xyz[mask].detach().cpu().numpy()
+            normals = np.zeros_like(xyz)
+            f_dc = self._features_dc[mask].detach().transpose(1, 2).flatten(start_dim=1).contiguous().cpu().numpy()
+            f_rest = self._features_rest[mask].detach().transpose(1, 2).flatten(start_dim=1).contiguous().cpu().numpy()
+            opacities = self._opacity[mask].detach().cpu().numpy()
+            scale = self._scaling[mask].detach().cpu().numpy()
+            rotation = self._rotation[mask].detach().cpu().numpy()
+        else:
+            xyz = self._xyz.detach().cpu().numpy()
+            normals = np.zeros_like(xyz)
+            f_dc = self._features_dc.detach().transpose(1, 2).flatten(start_dim=1).contiguous().cpu().numpy()
+            f_rest = self._features_rest.detach().transpose(1, 2).flatten(start_dim=1).contiguous().cpu().numpy()
+            opacities = self._opacity.detach().cpu().numpy()
+            scale = self._scaling.detach().cpu().numpy()
+            rotation = self._rotation.detach().cpu().numpy()
 
         dtype_full = [(attribute, 'f4') for attribute in self.construct_list_of_attributes()]
 

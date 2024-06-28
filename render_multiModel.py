@@ -41,7 +41,14 @@ def render_set(model_path, name, iteration, views, gaussians, pipeline, backgrou
     lpips_metric = []
 
     for idx, view in enumerate(tqdm(views, desc="Rendering progress")):
-        _result = render_multiModel(view, list(gaussians.values()), pipeline, background, combinedDebug=combinedDebug, strategy=strategy)
+        _result = render_multiModel(
+                view,
+                list(gaussians.values()),
+                pipeline, background,
+                combinedDebug=combinedDebug,
+                strategy=strategy,
+                save_model=False,
+                model_path=os.path.join(render_dir_path, "model", "{0:05d}".format(idx)))
         rendering = _result["render"]
         avg_points = avg_points * idx / (idx + 1) + _result["num_points"] / (idx + 1)
         gt = view.original_image[0:3, :, :]
@@ -51,7 +58,7 @@ def render_set(model_path, name, iteration, views, gaussians, pipeline, backgrou
         lpips_metric.append(lpips(rendering, gt, net_type="vgg"))
 
         if render_image:
-            torchvision.utils.save_image(rendering, os.path.join(render_dir_path, '{0:05d}'.format(idx) + ".png"))
+            torchvision.utils.save_image(rendering, os.path.join(render_dir_path, "{0:05d}".format(idx) + ".png"))
 
     metrics = {
         f"{name}_PSNR": torch.stack(psnr_metric).mean().item(),

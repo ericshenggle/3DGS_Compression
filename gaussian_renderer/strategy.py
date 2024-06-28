@@ -11,7 +11,7 @@ def distance_based_selection(pc, viewpoint_camera, overlap_ratio=0.1):
     :return: A list of masks, each corresponding to a point cloud in `pc`.
     """
     image_width, image_height = viewpoint_camera.image_width, viewpoint_camera.image_height
-    all_distances = torch.cat([torch.sqrt(((pc[0].get_xyz - viewpoint_camera.camera_center) ** 2).sum(dim=1))])
+    all_distances = [torch.sqrt(((pc[0].get_xyz - viewpoint_camera.camera_center) ** 2).sum(dim=1))]
     percentiles = [torch.quantile(all_distances, i / len(pc)) for i in range(len(pc) + 1)]
     
     masks = []
@@ -82,21 +82,22 @@ def distFoveated_selection(pc, viewpoint_camera, overlap_ratio=0.1):
     :return: A list of masks, each corresponding to a point cloud in `pc`.
     """
     image_width, image_height = viewpoint_camera.image_width, viewpoint_camera.image_height
-    all_distances = torch.cat([torch.sqrt(((pc[0].get_xyz - viewpoint_camera.camera_center) ** 2).sum(dim=1))])
-    percentiles = [torch.quantile(all_distances, i / len(pc)) for i in range(len(pc) + 1)]
+    all_distances = torch.sqrt(((pc[0].get_xyz - viewpoint_camera.camera_center) ** 2).sum(dim=1))
+    sector_num = len(pc) - 1
+    percentiles = [torch.quantile(all_distances, i / sector_num) for i in range(sector_num + 1)]
 
     # Get the direction vector of the camera
     direction_vector = viewpoint_camera.world_view_transform.inverse()[:3, 2]
     direction_vector = direction_vector / torch.norm(direction_vector)
 
     sector = []
-    for i, _ in enumerate(pc):
+    for i in range(sector_num):
         center = viewpoint_camera.camera_center
         # Add a small forward offset to center
-        center[2] += percentiles[i] / 10
+        center += direction_vector * percentiles[i] * 0.05
         radius = percentiles[i + 1]
         height = percentiles[i + 1]
-        angle_range = (60, 120)
+        angle_range = (30, 150)
         sector.append(Sector3D(center, radius, height, angle_range, direction_vector))
 
     masks = []
@@ -107,7 +108,7 @@ def distFoveated_selection(pc, viewpoint_camera, overlap_ratio=0.1):
             counts += is_points_in_sector_3d(pc_i.get_xyz, sector[j]).to(torch.int32)
         
         # Select points that based on the number of sectors they belong to, i.e., the better the model, the more sectors it belongs to
-        mask = (counts == len(pc) - i)
+        mask = (counts == len(pc) - 1 - i)
 
         # Additional masking to remove points outside the visible screen area
         screen_positions = transform_points_to_screen_space(pc_i.get_xyz, viewpoint_camera)

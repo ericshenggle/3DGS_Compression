@@ -100,7 +100,7 @@ def render(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, 
             "visibility_filter" : radii > 0,
             "radii": radii}
 
-def render_multiModel(viewpoint_camera, pc : list, pipe, bg_color : torch.Tensor, scaling_modifier = 1.0, override_color = None, combinedDebug = False, strategy=""):
+def render_multiModel(viewpoint_camera, pc : list, pipe, bg_color : torch.Tensor, scaling_modifier = 1.0, override_color = None, combinedDebug = False, strategy="", save_model=False, model_path=""):
     """
     Render the scene using multiple Gaussian models.    
     
@@ -174,6 +174,9 @@ def render_multiModel(viewpoint_camera, pc : list, pipe, bg_color : torch.Tensor
         cov3D_precomp.append(cov3D_precomp_tmp)
         shs.append(shs_tmp)
         colors_precomp.append(colors_precomp_tmp)
+
+        if save_model:
+            pc[i].save_ply(model_path + "model_" + str(i) + ".ply", mask)
 
     # Concatenate the list of tensors to single tensor
     mean3D = torch.cat(mean3D, dim=0)

@@ -9,3 +9,4 @@ screenshots
 *.out
 
 results/**/*
+model/
