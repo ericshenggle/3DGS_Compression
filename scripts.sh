@@ -2,13 +2,12 @@
 
 #SBATCH --job-name=3dgs
 #SBATCH --time=48:00:00
-#SBATCH --mail-type=BEGIN,END,FAIL
-#SBATCH --mail-user=cyang_09@u.nus.edu
 #SBATCH --partition=gpu-long
 
 # sbatch --gres=gpu:nv:1 -C cuda75 scripts.sh
 
-# python train.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00020 --densify_grad_threshold 0.00020 --eval
+# python line3d.py -s /home/c/chenggan/datasets/cube -m results/cube
+python line3d.py -s /home/c/chenggan/datasets/tandt/train/100_percent -m /home/c/chenggan/gaussian-splatting/results/train/same_colmap/dgt_0002/100_percent
 
 # python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00020 --strategy distFov --render_image
 # python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00021 --strategy distFov --render_image
@@ -52,95 +51,95 @@
 # python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_01000 --strategy distFov --render_image
 
 
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00020 --model_paths results/db/playroom/dgt_00100 results/db/playroom/dgt_00200 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00020 --model_paths results/db/playroom/dgt_00090 results/db/playroom/dgt_00190 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00020 --model_paths results/db/playroom/dgt_00080 results/db/playroom/dgt_00180 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00020 --model_paths results/db/playroom/dgt_00070 results/db/playroom/dgt_00170 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00020 --model_paths results/db/playroom/dgt_00060 results/db/playroom/dgt_00160 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00020 --model_paths results/db/playroom/dgt_00050 results/db/playroom/dgt_00150 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00020 --model_paths results/db/playroom/dgt_00050 results/db/playroom/dgt_00100 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00020 --model_paths results/db/playroom/dgt_00045 results/db/playroom/dgt_00090 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00020 --model_paths results/db/playroom/dgt_00040 results/db/playroom/dgt_00080 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00020 --model_paths results/db/playroom/dgt_00035 results/db/playroom/dgt_00070 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00020 --model_paths results/db/playroom/dgt_00030 results/db/playroom/dgt_00060 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00020 --model_paths results/db/playroom/dgt_00030 results/db/playroom/dgt_00050 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00025 --model_paths results/db/playroom/dgt_00100 results/db/playroom/dgt_00200 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00025 --model_paths results/db/playroom/dgt_00090 results/db/playroom/dgt_00190 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00025 --model_paths results/db/playroom/dgt_00080 results/db/playroom/dgt_00180 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00025 --model_paths results/db/playroom/dgt_00070 results/db/playroom/dgt_00170 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00025 --model_paths results/db/playroom/dgt_00060 results/db/playroom/dgt_00160 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00025 --model_paths results/db/playroom/dgt_00100 results/db/playroom/dgt_00150 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00025 --model_paths results/db/playroom/dgt_00090 results/db/playroom/dgt_00140 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00025 --model_paths results/db/playroom/dgt_00080 results/db/playroom/dgt_00130 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00025 --model_paths results/db/playroom/dgt_00070 results/db/playroom/dgt_00120 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00025 --model_paths results/db/playroom/dgt_00060 results/db/playroom/dgt_00110 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00030 --model_paths results/db/playroom/dgt_00100 results/db/playroom/dgt_00200 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00030 --model_paths results/db/playroom/dgt_00090 results/db/playroom/dgt_00190 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00030 --model_paths results/db/playroom/dgt_00080 results/db/playroom/dgt_00180 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00030 --model_paths results/db/playroom/dgt_00070 results/db/playroom/dgt_00170 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00030 --model_paths results/db/playroom/dgt_00060 results/db/playroom/dgt_00160 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00030 --model_paths results/db/playroom/dgt_00100 results/db/playroom/dgt_00150 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00030 --model_paths results/db/playroom/dgt_00090 results/db/playroom/dgt_00140 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00030 --model_paths results/db/playroom/dgt_00080 results/db/playroom/dgt_00130 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00030 --model_paths results/db/playroom/dgt_00070 results/db/playroom/dgt_00120 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00030 --model_paths results/db/playroom/dgt_00060 results/db/playroom/dgt_00110 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00035 --model_paths results/db/playroom/dgt_00100 results/db/playroom/dgt_00200 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00035 --model_paths results/db/playroom/dgt_00090 results/db/playroom/dgt_00190 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00035 --model_paths results/db/playroom/dgt_00080 results/db/playroom/dgt_00180 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00035 --model_paths results/db/playroom/dgt_00070 results/db/playroom/dgt_00170 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00035 --model_paths results/db/playroom/dgt_00060 results/db/playroom/dgt_00160 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00035 --model_paths results/db/playroom/dgt_00100 results/db/playroom/dgt_00150 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00035 --model_paths results/db/playroom/dgt_00090 results/db/playroom/dgt_00140 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00035 --model_paths results/db/playroom/dgt_00080 results/db/playroom/dgt_00130 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00035 --model_paths results/db/playroom/dgt_00070 results/db/playroom/dgt_00120 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00035 --model_paths results/db/playroom/dgt_00060 results/db/playroom/dgt_00110 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00040 --model_paths results/db/playroom/dgt_00100 results/db/playroom/dgt_00200 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00040 --model_paths results/db/playroom/dgt_00090 results/db/playroom/dgt_00190 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00040 --model_paths results/db/playroom/dgt_00080 results/db/playroom/dgt_00180 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00040 --model_paths results/db/playroom/dgt_00070 results/db/playroom/dgt_00170 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00040 --model_paths results/db/playroom/dgt_00060 results/db/playroom/dgt_00160 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00040 --model_paths results/db/playroom/dgt_00100 results/db/playroom/dgt_00150 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00040 --model_paths results/db/playroom/dgt_00090 results/db/playroom/dgt_00140 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00040 --model_paths results/db/playroom/dgt_00080 results/db/playroom/dgt_00130 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00040 --model_paths results/db/playroom/dgt_00070 results/db/playroom/dgt_00120 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00040 --model_paths results/db/playroom/dgt_00060 results/db/playroom/dgt_00110 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00045 --model_paths results/db/playroom/dgt_00100 results/db/playroom/dgt_00200 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00045 --model_paths results/db/playroom/dgt_00090 results/db/playroom/dgt_00190 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00045 --model_paths results/db/playroom/dgt_00080 results/db/playroom/dgt_00180 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00045 --model_paths results/db/playroom/dgt_00070 results/db/playroom/dgt_00170 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00045 --model_paths results/db/playroom/dgt_00060 results/db/playroom/dgt_00160 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00045 --model_paths results/db/playroom/dgt_00100 results/db/playroom/dgt_00150 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00045 --model_paths results/db/playroom/dgt_00090 results/db/playroom/dgt_00140 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00045 --model_paths results/db/playroom/dgt_00080 results/db/playroom/dgt_00130 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00045 --model_paths results/db/playroom/dgt_00070 results/db/playroom/dgt_00120 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00045 --model_paths results/db/playroom/dgt_00060 results/db/playroom/dgt_00110 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00050 --model_paths results/db/playroom/dgt_00100 results/db/playroom/dgt_00200 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00050 --model_paths results/db/playroom/dgt_00090 results/db/playroom/dgt_00190 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00050 --model_paths results/db/playroom/dgt_00080 results/db/playroom/dgt_00180 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00050 --model_paths results/db/playroom/dgt_00070 results/db/playroom/dgt_00170 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00050 --model_paths results/db/playroom/dgt_00060 results/db/playroom/dgt_00160 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00050 --model_paths results/db/playroom/dgt_00100 results/db/playroom/dgt_00150 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00050 --model_paths results/db/playroom/dgt_00090 results/db/playroom/dgt_00140 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00050 --model_paths results/db/playroom/dgt_00080 results/db/playroom/dgt_00130 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00050 --model_paths results/db/playroom/dgt_00070 results/db/playroom/dgt_00120 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00050 --model_paths results/db/playroom/dgt_00060 results/db/playroom/dgt_00110 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00060 --model_paths results/db/playroom/dgt_00150 results/db/playroom/dgt_00200 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00060 --model_paths results/db/playroom/dgt_00140 results/db/playroom/dgt_00190 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00060 --model_paths results/db/playroom/dgt_00130 results/db/playroom/dgt_00180 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00060 --model_paths results/db/playroom/dgt_00120 results/db/playroom/dgt_00170 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00060 --model_paths results/db/playroom/dgt_00110 results/db/playroom/dgt_00160 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00060 --model_paths results/db/playroom/dgt_00100 results/db/playroom/dgt_00150 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00060 --model_paths results/db/playroom/dgt_00090 results/db/playroom/dgt_00140 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00060 --model_paths results/db/playroom/dgt_00080 results/db/playroom/dgt_00130 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00060 --model_paths results/db/playroom/dgt_00070 results/db/playroom/dgt_00120 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00060 --model_paths results/db/playroom/dgt_00070 results/db/playroom/dgt_00110 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00070 --model_paths results/db/playroom/dgt_00160 results/db/playroom/dgt_00200 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00070 --model_paths results/db/playroom/dgt_00150 results/db/playroom/dgt_00190 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00070 --model_paths results/db/playroom/dgt_00140 results/db/playroom/dgt_00180 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00070 --model_paths results/db/playroom/dgt_00130 results/db/playroom/dgt_00170 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00070 --model_paths results/db/playroom/dgt_00120 results/db/playroom/dgt_00160 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00070 --model_paths results/db/playroom/dgt_00110 results/db/playroom/dgt_00150 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00070 --model_paths results/db/playroom/dgt_00100 results/db/playroom/dgt_00140 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00070 --model_paths results/db/playroom/dgt_00090 results/db/playroom/dgt_00130 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00070 --model_paths results/db/playroom/dgt_00080 results/db/playroom/dgt_00120 --strategy distFov --render_image
-python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00070 --model_paths results/db/playroom/dgt_00080 results/db/playroom/dgt_00110 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00020 --model_paths results/db/playroom/dgt_00100 results/db/playroom/dgt_00200 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00020 --model_paths results/db/playroom/dgt_00090 results/db/playroom/dgt_00190 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00020 --model_paths results/db/playroom/dgt_00080 results/db/playroom/dgt_00180 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00020 --model_paths results/db/playroom/dgt_00070 results/db/playroom/dgt_00170 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00020 --model_paths results/db/playroom/dgt_00060 results/db/playroom/dgt_00160 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00020 --model_paths results/db/playroom/dgt_00050 results/db/playroom/dgt_00150 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00020 --model_paths results/db/playroom/dgt_00050 results/db/playroom/dgt_00100 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00020 --model_paths results/db/playroom/dgt_00045 results/db/playroom/dgt_00090 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00020 --model_paths results/db/playroom/dgt_00040 results/db/playroom/dgt_00080 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00020 --model_paths results/db/playroom/dgt_00035 results/db/playroom/dgt_00070 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00020 --model_paths results/db/playroom/dgt_00030 results/db/playroom/dgt_00060 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00020 --model_paths results/db/playroom/dgt_00030 results/db/playroom/dgt_00050 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00025 --model_paths results/db/playroom/dgt_00100 results/db/playroom/dgt_00200 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00025 --model_paths results/db/playroom/dgt_00090 results/db/playroom/dgt_00190 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00025 --model_paths results/db/playroom/dgt_00080 results/db/playroom/dgt_00180 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00025 --model_paths results/db/playroom/dgt_00070 results/db/playroom/dgt_00170 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00025 --model_paths results/db/playroom/dgt_00060 results/db/playroom/dgt_00160 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00025 --model_paths results/db/playroom/dgt_00100 results/db/playroom/dgt_00150 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00025 --model_paths results/db/playroom/dgt_00090 results/db/playroom/dgt_00140 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00025 --model_paths results/db/playroom/dgt_00080 results/db/playroom/dgt_00130 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00025 --model_paths results/db/playroom/dgt_00070 results/db/playroom/dgt_00120 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00025 --model_paths results/db/playroom/dgt_00060 results/db/playroom/dgt_00110 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00030 --model_paths results/db/playroom/dgt_00100 results/db/playroom/dgt_00200 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00030 --model_paths results/db/playroom/dgt_00090 results/db/playroom/dgt_00190 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00030 --model_paths results/db/playroom/dgt_00080 results/db/playroom/dgt_00180 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00030 --model_paths results/db/playroom/dgt_00070 results/db/playroom/dgt_00170 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00030 --model_paths results/db/playroom/dgt_00060 results/db/playroom/dgt_00160 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00030 --model_paths results/db/playroom/dgt_00100 results/db/playroom/dgt_00150 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00030 --model_paths results/db/playroom/dgt_00090 results/db/playroom/dgt_00140 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00030 --model_paths results/db/playroom/dgt_00080 results/db/playroom/dgt_00130 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00030 --model_paths results/db/playroom/dgt_00070 results/db/playroom/dgt_00120 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00030 --model_paths results/db/playroom/dgt_00060 results/db/playroom/dgt_00110 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00035 --model_paths results/db/playroom/dgt_00100 results/db/playroom/dgt_00200 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00035 --model_paths results/db/playroom/dgt_00090 results/db/playroom/dgt_00190 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00035 --model_paths results/db/playroom/dgt_00080 results/db/playroom/dgt_00180 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00035 --model_paths results/db/playroom/dgt_00070 results/db/playroom/dgt_00170 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00035 --model_paths results/db/playroom/dgt_00060 results/db/playroom/dgt_00160 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00035 --model_paths results/db/playroom/dgt_00100 results/db/playroom/dgt_00150 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00035 --model_paths results/db/playroom/dgt_00090 results/db/playroom/dgt_00140 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00035 --model_paths results/db/playroom/dgt_00080 results/db/playroom/dgt_00130 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00035 --model_paths results/db/playroom/dgt_00070 results/db/playroom/dgt_00120 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00035 --model_paths results/db/playroom/dgt_00060 results/db/playroom/dgt_00110 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00040 --model_paths results/db/playroom/dgt_00100 results/db/playroom/dgt_00200 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00040 --model_paths results/db/playroom/dgt_00090 results/db/playroom/dgt_00190 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00040 --model_paths results/db/playroom/dgt_00080 results/db/playroom/dgt_00180 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00040 --model_paths results/db/playroom/dgt_00070 results/db/playroom/dgt_00170 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00040 --model_paths results/db/playroom/dgt_00060 results/db/playroom/dgt_00160 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00040 --model_paths results/db/playroom/dgt_00100 results/db/playroom/dgt_00150 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00040 --model_paths results/db/playroom/dgt_00090 results/db/playroom/dgt_00140 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00040 --model_paths results/db/playroom/dgt_00080 results/db/playroom/dgt_00130 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00040 --model_paths results/db/playroom/dgt_00070 results/db/playroom/dgt_00120 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00040 --model_paths results/db/playroom/dgt_00060 results/db/playroom/dgt_00110 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00045 --model_paths results/db/playroom/dgt_00100 results/db/playroom/dgt_00200 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00045 --model_paths results/db/playroom/dgt_00090 results/db/playroom/dgt_00190 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00045 --model_paths results/db/playroom/dgt_00080 results/db/playroom/dgt_00180 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00045 --model_paths results/db/playroom/dgt_00070 results/db/playroom/dgt_00170 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00045 --model_paths results/db/playroom/dgt_00060 results/db/playroom/dgt_00160 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00045 --model_paths results/db/playroom/dgt_00100 results/db/playroom/dgt_00150 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00045 --model_paths results/db/playroom/dgt_00090 results/db/playroom/dgt_00140 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00045 --model_paths results/db/playroom/dgt_00080 results/db/playroom/dgt_00130 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00045 --model_paths results/db/playroom/dgt_00070 results/db/playroom/dgt_00120 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00045 --model_paths results/db/playroom/dgt_00060 results/db/playroom/dgt_00110 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00050 --model_paths results/db/playroom/dgt_00100 results/db/playroom/dgt_00200 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00050 --model_paths results/db/playroom/dgt_00090 results/db/playroom/dgt_00190 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00050 --model_paths results/db/playroom/dgt_00080 results/db/playroom/dgt_00180 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00050 --model_paths results/db/playroom/dgt_00070 results/db/playroom/dgt_00170 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00050 --model_paths results/db/playroom/dgt_00060 results/db/playroom/dgt_00160 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00050 --model_paths results/db/playroom/dgt_00100 results/db/playroom/dgt_00150 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00050 --model_paths results/db/playroom/dgt_00090 results/db/playroom/dgt_00140 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00050 --model_paths results/db/playroom/dgt_00080 results/db/playroom/dgt_00130 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00050 --model_paths results/db/playroom/dgt_00070 results/db/playroom/dgt_00120 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00050 --model_paths results/db/playroom/dgt_00060 results/db/playroom/dgt_00110 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00060 --model_paths results/db/playroom/dgt_00150 results/db/playroom/dgt_00200 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00060 --model_paths results/db/playroom/dgt_00140 results/db/playroom/dgt_00190 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00060 --model_paths results/db/playroom/dgt_00130 results/db/playroom/dgt_00180 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00060 --model_paths results/db/playroom/dgt_00120 results/db/playroom/dgt_00170 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00060 --model_paths results/db/playroom/dgt_00110 results/db/playroom/dgt_00160 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00060 --model_paths results/db/playroom/dgt_00100 results/db/playroom/dgt_00150 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00060 --model_paths results/db/playroom/dgt_00090 results/db/playroom/dgt_00140 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00060 --model_paths results/db/playroom/dgt_00080 results/db/playroom/dgt_00130 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00060 --model_paths results/db/playroom/dgt_00070 results/db/playroom/dgt_00120 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00060 --model_paths results/db/playroom/dgt_00070 results/db/playroom/dgt_00110 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00070 --model_paths results/db/playroom/dgt_00160 results/db/playroom/dgt_00200 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00070 --model_paths results/db/playroom/dgt_00150 results/db/playroom/dgt_00190 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00070 --model_paths results/db/playroom/dgt_00140 results/db/playroom/dgt_00180 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00070 --model_paths results/db/playroom/dgt_00130 results/db/playroom/dgt_00170 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00070 --model_paths results/db/playroom/dgt_00120 results/db/playroom/dgt_00160 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00070 --model_paths results/db/playroom/dgt_00110 results/db/playroom/dgt_00150 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00070 --model_paths results/db/playroom/dgt_00100 results/db/playroom/dgt_00140 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00070 --model_paths results/db/playroom/dgt_00090 results/db/playroom/dgt_00130 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00070 --model_paths results/db/playroom/dgt_00080 results/db/playroom/dgt_00120 --strategy distFov --render_image
+# python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00070 --model_paths results/db/playroom/dgt_00080 results/db/playroom/dgt_00110 --strategy distFov --render_image

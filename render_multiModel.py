@@ -159,7 +159,7 @@ if __name__ == "__main__":
     start_time = time.time()
 
     # Set up command line argument parser
-    parser = ArgumentParser(description="Testing script parameters")
+    parser = ArgumentParser(description="Render 3DGS model in different combination")
     model = ModelParams(parser, sentinel=True)
     pipeline = PipelineParams(parser)
     parser.add_argument("--iteration", default=30000, type=int)
