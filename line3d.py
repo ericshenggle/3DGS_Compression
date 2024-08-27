@@ -137,7 +137,8 @@ def line3d_baseline2D(dataset : ModelParams, iteration : int):
         write_intrinsics_text(cam_intrinsics, os.path.join(dir_path, "cameras.txt"))
         write_points3D_text(means3D_with_ids, os.path.join(dir_path, "points3D.txt"))
    
-def render_sets(dataset : ModelParams, iteration : int, pipeline : PipelineParams, skip_train : bool, skip_test : bool, paths : list):
+def line3d_baseline3D(dataset : ModelParams, iteration : int, pipeline : PipelineParams, skip_train : bool, skip_test : bool, paths : list):
+    
     pass
 
 if __name__ == "__main__":
@@ -172,7 +173,6 @@ if __name__ == "__main__":
     if args.baseline == 2:
         # apply the line3D++ cluster algorithm directly on 3DGS
         line3d_baseline3D(model.extract(args), args.iteration, pipeline.extract(args), args.skip_train, args.skip_test, args.model_paths)
-        pass
 
     # End time
     end_time = time.time()
