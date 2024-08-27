@@ -15,7 +15,7 @@ import os
 import csv
 from tqdm import tqdm
 from os import makedirs
-from gaussian_renderer import render_multiModel, render
+from gaussian_renderer.render import render_multiModel
 import torchvision
 from utils.general_utils import safe_state
 from argparse import ArgumentParser

@@ -16,7 +16,6 @@ import csv
 from tqdm import tqdm
 from os import makedirs
 from gaussian_renderer import render_multiModel, render
-from gaussian_renderer.strategy import transform_points_to_screen_space
 import torchvision
 from utils.general_utils import safe_state
 from argparse import ArgumentParser
@@ -28,6 +27,7 @@ from lpipsPyTorch import lpips
 
 import collections
 import numpy as np
+from gaussian_renderer.strategy import transform_points_to_screen_space
 from utils.graphics_utils import fov2focal
 from scene.colmap_loader import rotmat2qvec
 
@@ -76,7 +76,7 @@ def write_points3D_text(means3D, path):
             f.write(f"{int(point3d_id)} {x} {y} {z}\n")
 
 
-def line3d(dataset : ModelParams, iteration : int, pipeline : PipelineParams, skip_train : bool, skip_test : bool, paths : list):
+def line3d_baseline2D(dataset : ModelParams, iteration : int):
     with torch.no_grad():
         gaussians = GaussianModel(dataset.sh_degree)
         scene = Scene(dataset, gaussians, load_iteration=iteration)
@@ -84,7 +84,7 @@ def line3d(dataset : ModelParams, iteration : int, pipeline : PipelineParams, sk
         means3D = gaussians.get_xyz
         pIDs = torch.arange(1, means3D.shape[0] + 1).unsqueeze(1).cuda()
         means3D_with_ids = torch.cat((means3D, pIDs), dim=1)
-        indices = torch.randperm(means3D_with_ids.shape[0])[:1000]
+        indices = torch.randperm(means3D_with_ids.shape[0])[:10000]
         means3D_with_ids = means3D_with_ids[indices]
 
         views = scene.getTrainCameras()
@@ -137,6 +137,8 @@ def line3d(dataset : ModelParams, iteration : int, pipeline : PipelineParams, sk
         write_intrinsics_text(cam_intrinsics, os.path.join(dir_path, "cameras.txt"))
         write_points3D_text(means3D_with_ids, os.path.join(dir_path, "points3D.txt"))
    
+def render_sets(dataset : ModelParams, iteration : int, pipeline : PipelineParams, skip_train : bool, skip_test : bool, paths : list):
+    pass
 
 if __name__ == "__main__":
     # Start Time
@@ -155,6 +157,7 @@ if __name__ == "__main__":
     parser.add_argument("--combinedDebug", action="store_true")
     parser.add_argument("--strategy", type=str, default="dist")
     parser.add_argument("--render_image", action="store_true")
+    parser.add_argument("--baseline", default=1, type=int)
     args = get_combined_args(parser)
     print("Rendering " + args.model_path)
     print("Combined with " + str(args.model_paths))
@@ -162,7 +165,14 @@ if __name__ == "__main__":
     # Initialize system state (RNG)
     safe_state(args.quiet)
 
-    line3d(model.extract(args), args.iteration, pipeline.extract(args), args.skip_train, args.skip_test, args.model_paths)
+    if args.baseline == 1:
+        # store the 3DGS coord information as colmap text format in source_path, in order to use line3D++
+        line3d_baseline2D(model.extract(args), args.iteration)
+
+    if args.baseline == 2:
+        # apply the line3D++ cluster algorithm directly on 3DGS
+        line3d_baseline3D(model.extract(args), args.iteration, pipeline.extract(args), args.skip_train, args.skip_test, args.model_paths)
+        pass
 
     # End time
     end_time = time.time()
