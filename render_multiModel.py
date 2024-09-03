@@ -14,7 +14,6 @@ from scene import Scene
 import os
 import csv
 from tqdm import tqdm
-from os import makedirs
 from gaussian_renderer.render import render_multiModel
 import torchvision
 from utils.general_utils import safe_state
@@ -30,9 +29,9 @@ def render_set(model_path, name, iteration, views, gaussians, pipeline, backgrou
     render_dir_path = ''
     if render_image:
         render_dir_path = os.path.join(model_path, name)
-        makedirs(render_dir_path, exist_ok=True)
+        os.makedirs(render_dir_path, exist_ok=True)
     # for key, value in gaussians.items():
-    #     makedirs(os.path.join(model_path, key), exist_ok=True)
+    #     os.makedirs(os.path.join(model_path, key), exist_ok=True)
 
     avg_points = 0
 
@@ -77,7 +76,7 @@ def render_set(model_path, name, iteration, views, gaussians, pipeline, backgrou
 
 def render_gt(model_path, name, views):
     render_dir_path = os.path.join(model_path, name)
-    makedirs(render_dir_path, exist_ok=True)
+    os.makedirs(render_dir_path, exist_ok=True)
 
     if len(os.listdir(render_dir_path)) > 0:
         return

@@ -68,7 +68,7 @@ class Line3D:
                 self.lines3D_.append(final_line)
 
     def Write3DlinesToSTL(self, output_folder):
-        makedirs(output_folder, exist_ok=True)
+        os.makedirs(output_folder, exist_ok=True)
 
         if len(self.lines3D_) == 0:
             print(self.prefix_wng_, "no 3D lines to save!")

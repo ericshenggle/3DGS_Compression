@@ -190,7 +190,7 @@ def line3d_baseline3D(dataset : ModelParams, iteration : int, pipeline : Pipelin
             
             line.set_segments(coll)
     
-    line.Write3DlinesToSTL(os.path.join(dir_path, "Line3D++_test"))
+    line3d.Write3DlinesToSTL(os.path.join(dir_path, "Line3D++_test"))
     pass
 
 if __name__ == "__main__":
