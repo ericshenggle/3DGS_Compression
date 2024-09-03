@@ -155,8 +155,9 @@ def render_sets(dataset : ModelParams, iteration : int, pipeline : PipelineParam
 
 if __name__ == "__main__":
     # Start Time
-    import time 
+    import time, datetime
     start_time = time.time()
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
 
     # Set up command line argument parser
     parser = ArgumentParser(description="Render 3DGS model in different combination")
@@ -184,4 +185,4 @@ if __name__ == "__main__":
 
     # Save time
     from utils.system_utils import save_timeline
-    save_timeline('render', start_time, end_time, args.model_path)
+    save_timeline(f"render_multi: {now}", start_time, end_time, args.model_path)

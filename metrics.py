@@ -94,8 +94,9 @@ def evaluate(model_paths):
 
 if __name__ == "__main__":
     # Start Time
-    import time 
+    import time, datetime
     start_time = time.time()
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
 
     device = torch.device("cuda:0")
     torch.cuda.set_device(device)
@@ -111,6 +112,6 @@ if __name__ == "__main__":
 
     # Save time
     from utils.system_utils import save_timeline, sum_timelines
-    save_timeline('metrics', start_time, end_time, args.model_paths[0])
+    save_timeline(f"metrics: {now}", start_time, end_time, args.model_paths[0])
 
     sum_timelines(args.model_paths[0])

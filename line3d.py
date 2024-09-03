@@ -13,9 +13,9 @@ import torch
 from scene import Scene
 import os
 import csv
+import itertools
 from tqdm import tqdm
 from os import makedirs
-from gaussian_renderer import render_multiModel, render
 import torchvision
 from utils.general_utils import safe_state
 from argparse import ArgumentParser
@@ -30,6 +30,7 @@ import numpy as np
 from gaussian_renderer.strategy import transform_points_to_screen_space
 from utils.graphics_utils import fov2focal
 from scene.colmap_loader import rotmat2qvec
+from lines import Line3D
 
 
 Image = collections.namedtuple(
@@ -136,15 +137,67 @@ def line3d_baseline2D(dataset : ModelParams, iteration : int):
         write_extrinsics_text(cam_extrinsics, os.path.join(dir_path, "images.txt"))
         write_intrinsics_text(cam_intrinsics, os.path.join(dir_path, "cameras.txt"))
         write_points3D_text(means3D_with_ids, os.path.join(dir_path, "points3D.txt"))
-   
-def line3d_baseline3D(dataset : ModelParams, iteration : int, pipeline : PipelineParams, skip_train : bool, skip_test : bool, paths : list):
+
+def merge_all_segments(segments, points):
+    attempted_merges = set()
+    while True:
+        merged_any = False
+
+        for segment1, segment2 in itertools.combinations(segments, 2):
+            segment_pair_id = (id(segment1), id(segment2))
+            if segment_pair_id in attempted_merges:
+                continue
+
+            merged_segment = segment1.try_merge(segment2, points)
+
+            if merged_segment:
+                segments.remove(segment1)
+                segments.remove(segment2)
+                segments.append(merged_segment)
+                merged_any = True
+                break
+
+            attempted_merges.add(segment_pair_id)
+
+        if not merged_any:
+            break
     
+    return segments
+
+def line3d_baseline3D(dataset : ModelParams, iteration : int, pipeline : PipelineParams, skip_train : bool, skip_test : bool, paths : list, use_cuda : bool):
+    dir_path = os.path.join(args.source_path, "colmap")
+    line3d = Line3D()
+    line3d.load3DLinesFromTXT(os.path.join(dir_path, "Line3D++_test"), use_cuda)
+    
+    # lines
+    lines = line3d.lines3D()
+    gaussians = GaussianModel(dataset.sh_degree)
+    scene = Scene(dataset, gaussians, load_iteration=iteration)
+
+    means3D = gaussians.get_xyz
+    if not use_cuda:
+        means3D = means3D.detach().cpu().numpy()
+
+    for i, line in enumerate(lines):
+        coll = line.collinear3Dsegments()
+
+        # merge the segment3D if can
+        if len(coll) > 1:
+            print("Start merge")
+            coll = merge_all_segments(coll, means3D)
+            print(f"New collinear3Dsegments length is {len(coll)}")
+            print(f"New Segments 3D: P1 {coll[0].P1()}, P2 {coll[0].P2()}")
+            
+            line.set_segments(coll)
+    
+    line.Write3DlinesToSTL(os.path.join(dir_path, "Line3D++_test"))
     pass
 
 if __name__ == "__main__":
     # Start Time
-    import time 
+    import time, datetime
     start_time = time.time()
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
 
     # Set up command line argument parser
     parser = ArgumentParser(description="Getting 3D Lines for 3DGS")
@@ -159,9 +212,8 @@ if __name__ == "__main__":
     parser.add_argument("--strategy", type=str, default="dist")
     parser.add_argument("--render_image", action="store_true")
     parser.add_argument("--baseline", default=1, type=int)
+    parser.add_argument("--use_cuda", action="store_true")
     args = get_combined_args(parser)
-    print("Rendering " + args.model_path)
-    print("Combined with " + str(args.model_paths))
 
     # Initialize system state (RNG)
     safe_state(args.quiet)
@@ -172,11 +224,11 @@ if __name__ == "__main__":
 
     if args.baseline == 2:
         # apply the line3D++ cluster algorithm directly on 3DGS
-        line3d_baseline3D(model.extract(args), args.iteration, pipeline.extract(args), args.skip_train, args.skip_test, args.model_paths)
+        line3d_baseline3D(model.extract(args), args.iteration, pipeline.extract(args), args.skip_train, args.skip_test, args.model_paths, args.use_cuda)
 
     # End time
     end_time = time.time()
 
     # Save time
     from utils.system_utils import save_timeline
-    save_timeline('render', start_time, end_time, args.model_path)
+    save_timeline(f"line3D: {now}", start_time, end_time, args.model_path)

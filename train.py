@@ -11,7 +11,7 @@
 
 import os
 import torch
-import time
+import time, datetime
 from random import randint
 from utils.loss_utils import l1_loss, ssim
 from lpipsPyTorch import lpips
@@ -204,6 +204,7 @@ if __name__ == "__main__":
 
     # Start time
     start_time = time.time()
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
 
     parser = ArgumentParser(description="Training script parameters")
     lp = ModelParams(parser)
@@ -241,6 +242,6 @@ if __name__ == "__main__":
 
     # Save time
     from utils.system_utils import save_timeline, sum_timelines
-    save_timeline('training', start_time, end_time, args.model_path)
+    save_timeline(f"training: {now}", start_time, end_time, args.model_path)
 
     sum_timelines(args.model_path)

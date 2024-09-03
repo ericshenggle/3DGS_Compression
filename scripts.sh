@@ -7,7 +7,7 @@
 # sbatch --gres=gpu:nv:1 -C cuda75 scripts.sh
 
 # python line3d.py -s /home/c/chenggan/datasets/cube -m results/cube
-python line3d.py -s /home/c/chenggan/datasets/db/playroom -m /home/c/chenggan/gaussian-splatting/results/db/playroom/dgt_00020
+python line3d.py -s /home/c/chenggan/datasets/db/playroom -m /home/c/chenggan/gaussian-splatting/results/db/playroom/dgt_00020 --baseline 2
 
 # python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00020 --strategy distFov --render_image
 # python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00021 --strategy distFov --render_image
