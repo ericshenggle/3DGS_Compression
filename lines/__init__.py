@@ -10,7 +10,7 @@ class Line3D:
     def lines3D(self) -> List:
         return self.lines3D_
 
-    def load3DLinesFromTXT(self, input_folder, use_cuda):
+    def load3DLinesFromTXT(self, input_folder):
         # get filename
         for f in os.listdir(input_folder):
             # 检查文件是否以 .txt 结尾
@@ -36,10 +36,7 @@ class Line3D:
                 for _ in range(num_segments):
                     P1 = np.array([float(elements[idx]), float(elements[idx+1]), float(elements[idx+2])])
                     P2 = np.array([float(elements[idx+3]), float(elements[idx+4]), float(elements[idx+5])])
-                    if use_cuda:
-                        seg3D = Segment3D_Tensor(P1, P2)
-                    else:
-                        seg3D = Segment3D(P1, P2)
+                    seg3D = Segment3D(P1, P2)
                     segments.append(seg3D)
                     idx += 6
 

@@ -167,16 +167,14 @@ def merge_all_segments(segments, points):
 def line3d_baseline3D(dataset : ModelParams, iteration : int, pipeline : PipelineParams, skip_train : bool, skip_test : bool, paths : list, use_cuda : bool):
     dir_path = os.path.join(args.source_path, "colmap")
     line3d = Line3D()
-    line3d.load3DLinesFromTXT(os.path.join(dir_path, "Line3D++_test"), use_cuda)
+    line3d.load3DLinesFromTXT(os.path.join(dir_path, "Line3D++"))
     
     # lines
     lines = line3d.lines3D()
     gaussians = GaussianModel(dataset.sh_degree)
     scene = Scene(dataset, gaussians, load_iteration=iteration)
 
-    means3D = gaussians.get_xyz
-    if not use_cuda:
-        means3D = means3D.detach().cpu().numpy()
+    means3D = gaussians.get_xyz.detach().cpu().numpy()
 
     for i, line in enumerate(lines):
         coll = line.collinear3Dsegments()

@@ -6,105 +6,6 @@ import numpy as np
 Segment2D = collections.namedtuple(
     "Segment2D", ["camID", "segID", "coords"])
 
-class Segment3D_Tensor:
-    def __init__(self, P1: np.ndarray = None, P2: np.ndarray = None):
-        self.is_cuda = True
-        if P1 is None or P2 is None:
-            self.P1_ = torch.tensor([0.0, 0.0, 0.0])
-            self.P2_ = torch.tensor([0.0, 0.0, 0.0])
-            self.dir_ = torch.tensor([0.0, 0.0, 0.0])
-            self.length_ = 0.0
-            self.valid_ = False
-        else:
-            if isinstance(P1, np.ndarray) and isinstance(P2, np.ndarray):
-                P1_tensor = torch.tensor(P1, dtype=torch.float, device="cuda")
-                P2_tensor = torch.tensor(P2, dtype=torch.float, device="cuda")
-            elif isinstance(P1, torch.Tensor) and isinstance(P2, torch.Tensor):
-                P1_tensor = P1
-                P2_tensor = P2
-            self.length_ = torch.norm(P1_tensor - P2_tensor)
-            if self.length_ > 1e-12:
-                self.P1_ = P1_tensor
-                self.P2_ = P2_tensor
-                self.dir_ = (P2_tensor - P1_tensor) / self.length_
-                self.valid_ = True
-            else:
-                self.P1_ = torch.tensor([0.0, 0.0, 0.0])
-                self.P2_ = torch.tensor([0.0, 0.0, 0.0])
-                self.dir_ = torch.tensor([0.0, 0.0, 0.0])
-                self.length_ = 0.0
-                self.valid_ = False
-
-    def distance_point_to_line(self, P: torch.Tensor) -> float:
-        hlp_pt = self.P1_ + self.dir_ * torch.dot((P - self.P1_), self.dir_)
-        return torch.norm(hlp_pt - P).item()
-
-    def translate(self, t: torch.Tensor):
-        self.P1_ += t
-        self.P2_ += t
-
-    def P1(self) -> torch.Tensor:
-        return self.P1_
-
-    def P2(self) -> torch.Tensor:
-        return self.P2_
-
-    def dir(self) -> torch.Tensor:
-        return self.dir_
-
-    def length(self) -> float:
-        return self.length_
-
-    def valid(self) -> bool:
-        return self.valid_
-
-    def is_collinear_with(self, other, angle_threshold=1e-3, distance_threshold=1e-2):
-        """Check if the current segment is collinear with another segment."""
-        angle_diff = torch.acos(torch.clamp(torch.dot(self.dir_, other.dir_), -1.0, 1.0))
-        if angle_diff > angle_threshold:
-            return False
-
-        return True
-
-    def points_in_gap(self, points, gap_threshold=1e-2):
-        """Check if there are enough points within the gap between two segments."""
-        gap_points = []
-        for point in points:
-            # Project the point onto the line defined by the current segment
-            dist_to_line = self.distance_point_to_line(point)
-            
-            # Check if the point is within a certain threshold of the line
-            if dist_to_line < gap_threshold:
-                gap_points.append(point)
-        
-        return gap_points
-
-    def merge_with(self, other):
-        """Merge the current segment with another segment."""
-        candidates = [self.P1_, self.P2_, other.P1_, other.P2_]
-        sorted_candidates = sorted(candidates, key=lambda p: torch.dot(p - self.P1_, self.dir_))
-        new_P1, new_P2 = sorted_candidates[0], sorted_candidates[-1]
-        if torch.all(new_P1 > new_P2):
-            new_P1, new_P2 = new_P2, new_P1
-        
-        return Segment3D_Tensor(new_P1, new_P2)
-
-    def try_merge(self, other, points, angle_threshold=1e-3, distance_threshold=1e-2, point_threshold=5, gap_threshold=1e-2):
-        """Try to merge two segments if they are collinear and have enough points in the gap."""
-    
-        # Step 1: Check if segments are collinear or have similar direction
-        if not self.is_collinear_with(other, angle_threshold, distance_threshold):
-            return None
-    
-        # Step 2: Identify points in the gap region
-        gap_points = self.points_in_gap(points, gap_threshold)
-
-        # Step 3: Merge segments if there are enough points in the gap
-        if len(gap_points) >= point_threshold:
-            return self.merge_with(other)
-
-        return None
-
 class Segment3D:
     def __init__(self, P1: np.ndarray = None, P2: np.ndarray = None):
         self.is_cuda = False
@@ -115,6 +16,10 @@ class Segment3D:
             self.length_ = 0.0
             self.valid_ = False
         else:
+            # Check if P1 should be before P2
+            if np.linalg.norm(P1) > np.linalg.norm(P2):
+                P1, P2 = P2, P1
+                
             self.length_ = np.linalg.norm(P1 - P2)
             if self.length_ > 1e-12:  
                 self.P1_ = P1
@@ -151,13 +56,37 @@ class Segment3D:
     def valid(self) -> bool:
         return self.valid_
 
-    def is_collinear_with(self, other, angle_threshold=1e-3, distance_threshold=1e-2):
+    def is_collinear_with(self, other, distance_threshold=1e-2):
         """Check if the current segment is collinear with another segment."""
-        angle_diff = np.arccos(np.clip(np.dot(self.dir_, other.dir_), -1.0, 1.0))
-        if angle_diff > angle_threshold:
-            return False
-
-        return True
+        cross_dir = np.cross(self.dir_, other.dir_)
+        if np.linalg.norm(cross_dir) < 1e-2:  # They are parallel
+            P1_to_other = other.P1_ - self.P1_
+            projected_distance = np.linalg.norm(np.cross(P1_to_other, self.dir_))
+            if projected_distance < distance_threshold:
+                return True
+        return False
+    
+    def calculate_density(self, points, gap_threshold=1e-2):
+        """Calculate the density of points around the segment within a certain gap threshold."""
+        points_in_gap = self.points_in_gap(points, gap_threshold)
+        density = len(points_in_gap) / self.length_ if self.length_ > 0 else 0
+        return density, len(points_in_gap)
+    
+    def filter_points_within_segment(self, points, margin=1e-1):
+        min_bound = np.minimum(self.P1_, self.P2_) - margin
+        max_bound = np.maximum(self.P1_, self.P2_) + margin
+        
+        filtered_points = [p for p in points if np.all(p >= min_bound) and np.all(p <= max_bound)]
+        return filtered_points
+    
+    def filter_points_within_gap(self, other, points, margin=1e-1):
+        candidates = [self.P1_, self.P2_, other.P1_, other.P2_]
+        sorted_candidates = sorted(candidates, key=lambda p: np.dot(p - self.P1_, self.dir_))
+        min_bound = np.minimum(sorted_candidates[1], sorted_candidates[2]) - margin
+        max_bound = np.maximum(sorted_candidates[1], sorted_candidates[2]) + margin
+        
+        filtered_points = [p for p in points if np.all(p >= min_bound) and np.all(p <= max_bound)]
+        return filtered_points, sorted_candidates
 
     def points_in_gap(self, points, gap_threshold=1e-2):
         """Check if there are enough points within the gap between two segments."""
@@ -172,29 +101,34 @@ class Segment3D:
         
         return gap_points
 
-    def merge_with(self, other):
-        """Merge the current segment with another segment."""
-        candidates = [self.P1_, self.P2_, other.P1_, other.P2_]
-        sorted_candidates = sorted(candidates, key=lambda p: np.dot(p - self.P1_, self.dir_))
-        new_P1, new_P2 = sorted_candidates[0], sorted_candidates[-1]
-        if np.all(new_P1 > new_P2):
-            new_P1, new_P2 = new_P2, new_P1
-        
-        return Segment3D(new_P1, new_P2)
-
-    def try_merge(self, other, points, angle_threshold=1e-3, distance_threshold=1e-2, point_threshold=5, gap_threshold=1e-2):
+    def try_merge(self, other, points, distance_threshold=1e-2, gap_threshold=1e-1):
         """Try to merge two segments if they are collinear and have enough points in the gap."""
     
+        print("Start Step 1")
         # Step 1: Check if segments are collinear or have similar direction
-        if not self.is_collinear_with(other, angle_threshold, distance_threshold):
+        if not self.is_collinear_with(other, distance_threshold):
             return None
+        print("Step 1 successfully")
     
         # Step 2: Identify points in the gap region
-        gap_points = self.points_in_gap(points, gap_threshold)
+        filtered_points_self = self.filter_points_within_segment(points)
+        density1, count1 = self.calculate_density(filtered_points_self, gap_threshold)
+        print(f"filtered_points_self: {len(filtered_points_self)}, density1: {density1}, count1: {count1}")
+        filtered_points_other = other.filter_points_within_segment(points)
+        density2, count2 = other.calculate_density(filtered_points_other, gap_threshold)
+        print(f"filtered_points_other: {len(filtered_points_other)}, density2: {density2}, count2: {count2}")
+        
+        filtered_gap_points, sorted_points = self.filter_points_within_gap(other, points)
+        gap_points = self.points_in_gap(filtered_gap_points, gap_threshold)
+        average_density = (density1 + density2) / 2
+        expected_length = np.linalg.norm(sorted_points[1] - sorted_points[2])
+        point_threshold = int(average_density * expected_length)
+        print(f"Step 2: filtered_gap_points {filtered_gap_points}, number of gap_points {len(gap_points)}, point_threshold {point_threshold}")
 
         # Step 3: Merge segments if there are enough points in the gap
         if len(gap_points) >= point_threshold:
-            return self.merge_with(other)
+            new_P1, new_P2 = sorted_points[0], sorted_points[-1]
+            return Segment3D(new_P1, new_P2)
 
         return None
 
