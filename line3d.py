@@ -148,7 +148,7 @@ def merge_all_segments(segments, points):
             if segment_pair_id in attempted_merges:
                 continue
 
-            merged_segment = segment1.try_merge(segment2, points)
+            merged_segment = segment1.try_collinear_merge(segment2, points)
 
             if merged_segment:
                 segments.remove(segment1)
@@ -186,7 +186,15 @@ def line3d_baseline3D(dataset : ModelParams, iteration : int, pipeline : Pipelin
             print(f"New collinear3Dsegments length is {len(coll)}")
             print(f"New Segments 3D: P1 {coll[0].P1()}, P2 {coll[0].P2()}")
             
-            line.set_segments(coll)
+        # cropping the segment3D if can
+        for s in coll:
+            print(f"Start cropping, segment length: {s.length()}")
+            is_cropping = s.try_cropping(means3D)
+            if is_cropping:
+                print(f"Here is a cropping segment3D: P1 {s.P1()}, P2 {s.P2()}")
+                print(f"End cropping, segment length: {s.length()}")
+            
+        line.set_segments(coll)
     
     line3d.Write3DlinesToSTL(os.path.join(dir_path, "Line3D++_test"))
     pass
