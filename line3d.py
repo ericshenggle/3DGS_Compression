@@ -180,32 +180,52 @@ def line3d_baseline3D(dataset : ModelParams, iteration : int, pipeline : Pipelin
     
     # lines
     lines = line3d.lines3D()
-    
     means3D = load_ply(os.path.join(args.model_path,
                                     "point_cloud",
                                     "iteration_" + str(iteration),
                                     "point_cloud.ply"))
 
+    # calculate the density of the all segment3D
+    total_density = 0
+    total_filter_count = 0
+    total_segment_count = 0
     for i, line in enumerate(lines):
         coll = line.collinear3Dsegments()
-
-        # merge the segment3D if can
-        if len(coll) > 1:
-            print("Start merge")
-            coll = merge_all_segments(coll, means3D)
-            print(f"New collinear3Dsegments length is {len(coll)}")
-            print(f"New Segments 3D: P1 {coll[0].P1()}, P2 {coll[0].P2()}")
-            
-        # cropping the segment3D if can
         for s in coll:
-            print(f"Start cropping, segment length: {s.length()}")
+            density, filter_count = s.calculate_density(means3D)
+            total_density += density
+            total_filter_count += filter_count
+        total_segment_count += len(coll)
+        line.set_segments(coll)
+    total_density /= total_segment_count
+    total_filter_count /= total_segment_count
+    print(f"Total density: {total_density}, Total filter count: {total_filter_count}")
+
+    for i, line in enumerate(lines):
+        coll = line.collinear3Dsegments()
+        # drop the segment3D if can
+        print(f"Start dropping Line {i}")
+        tmp_coll = []
+        for j, s in enumerate(coll):
+            density, filter_count = s.calculate_density(means3D)
+            if density < total_density * 0.3 and filter_count < total_filter_count * 0.3:
+                print(f"Drop segment {j}, density: {density}, filter_count: {filter_count}")
+                continue
+            tmp_coll.append(s)
+        # merge the collinear segment3D if can
+        if len(tmp_coll) > 1:
+            print(f"Start merging Line {i}, segment3D count: {len(tmp_coll)}")
+            coll = merge_all_segments(coll, means3D)
+            if len(coll) < len(tmp_coll):
+                print(f"New number segment3D of Line{i} is {len(coll)}")
+        # cropping the segment3D if can
+        print(f"Start cropping Line {i}")
+        for j, s in enumerate(tmp_coll):
+            print(f"Start cropping segment {j}, segment length: {s.length()}")
             is_cropping = s.try_cropping(means3D)
             if is_cropping:
-                print(f"Here is a cropping segment3D: P1 {s.P1()}, P2 {s.P2()}")
-                print(f"End cropping, segment length: {s.length()}")
-            
-        line.set_segments(coll)
-    
+                print(f"New segment length: {s.length()}, P1 {s.P1()}, P2 {s.P2()}")
+        line.set_segments(tmp_coll)
     line3d.Write3DlinesToSTL(os.path.join(dir_path, "Line3D++_test"))
     pass
 
