@@ -119,16 +119,16 @@ class Segment3D:
     
         # Step 2: Identify points in the gap region
         density1, count1 = self.calculate_density(points, gap_threshold)
-        print(f"filtered_points_self: {len(filtered_points_self)}, density1: {density1}, count1: {count1}")
+        print(f"density1: {density1}, count1: {count1}")
         density2, count2 = other.calculate_density(points, gap_threshold)
-        print(f"filtered_points_other: {len(filtered_points_other)}, density2: {density2}, count2: {count2}")
+        print(f"density2: {density2}, count2: {count2}")
         
         filtered_gap_points, sorted_points = self.filter_points_within_gap(other, points)
         gap_points = self.points_in_gap(filtered_gap_points, gap_threshold)
         average_density = (density1 + density2) / 2
         expected_length = np.linalg.norm(sorted_points[1] - sorted_points[2])
         point_threshold = int(average_density * expected_length)
-        print(f"Step 2: filtered_gap_points {filtered_gap_points}, number of gap_points {len(gap_points)}, point_threshold {point_threshold}")
+        print(f"Step 2: number of gap_points {len(gap_points)}, point_threshold {point_threshold}")
 
         # Step 3: Merge segments if there are enough points in the gap
         if len(gap_points) >= point_threshold:

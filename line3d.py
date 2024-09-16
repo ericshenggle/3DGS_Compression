@@ -17,6 +17,7 @@ import itertools
 from tqdm import tqdm
 from os import makedirs
 import torchvision
+from plyfile import PlyData
 from utils.general_utils import safe_state
 from argparse import ArgumentParser
 from arguments import ModelParams, PipelineParams, get_combined_args
@@ -164,6 +165,14 @@ def merge_all_segments(segments, points):
     
     return segments
 
+def load_ply(path):
+    plydata = PlyData.read(path)
+
+    xyz = np.stack((np.asarray(plydata.elements[0]["x"]),
+                    np.asarray(plydata.elements[0]["y"]),
+                    np.asarray(plydata.elements[0]["z"])),  axis=1)
+    return xyz
+
 def line3d_baseline3D(dataset : ModelParams, iteration : int, pipeline : PipelineParams, skip_train : bool, skip_test : bool, paths : list, use_cuda : bool):
     dir_path = os.path.join(args.source_path, "colmap")
     line3d = Line3D()
@@ -171,10 +180,11 @@ def line3d_baseline3D(dataset : ModelParams, iteration : int, pipeline : Pipelin
     
     # lines
     lines = line3d.lines3D()
-    gaussians = GaussianModel(dataset.sh_degree)
-    scene = Scene(dataset, gaussians, load_iteration=iteration)
-
-    means3D = gaussians.get_xyz.detach().cpu().numpy()
+    
+    means3D = load_ply(os.path.join(args.model_path,
+                                    "point_cloud",
+                                    "iteration_" + str(iteration),
+                                    "point_cloud.ply"))
 
     for i, line in enumerate(lines):
         coll = line.collinear3Dsegments()
