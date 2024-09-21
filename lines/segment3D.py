@@ -65,28 +65,24 @@ class Segment3D:
             candidates = [self.P1_, self.P2_, other.P1_, other.P2_]
             sorted_candidates = sorted(candidates, key=lambda p: np.dot(p - self.P1_, self.dir_))
             target_segment = [sorted_candidates[1], sorted_candidates[2]]
-            min_bound = np.minimum(sorted_candidates[1], sorted_candidates[2]) - margin
-            max_bound = np.maximum(sorted_candidates[1], sorted_candidates[2]) + margin
         else:
             sorted_candidates = [self.P1_, self.P2_]
             target_segment = sorted_candidates
-            min_bound = np.minimum(self.P1_, self.P2_) - margin
-            max_bound = np.maximum(self.P1_, self.P2_) + margin
         # The main axis (segment direction)
         direction_vector = target_segment[1] - target_segment[0]
         direction_vector /= np.linalg.norm(direction_vector)
-        # Step 2: Define the length of the segment (which will be the height of the cylinder)
-        segment_length = np.linalg.norm(target_segment[1] - target_segment[0])
-        # Step 3: Filter points inside the cylindrical region
+        # Step 2: Filter points inside the cylindrical region
         filtered_points = []
         for point in points:
             # Project the point onto the line segment (cylinder axis)
-            point_to_start = point - target_segment[0]
-            projection_length = np.dot(point_to_start, direction_vector)
+            start_to_point = point - target_segment[0]
+            projection_length_1 = np.dot(start_to_point, direction_vector)
+            end_to_point = point - target_segment[1]
+            projection_length_2 = np.dot(end_to_point, -direction_vector)
             # Check if the projection falls within the segment length
-            if 0 <= projection_length <= segment_length:
+            if 0 <= projection_length_1 and 0 <= projection_length_2:
                 # Calculate the perpendicular distance from the point to the cylinder axis
-                projection_point = target_segment[0] + projection_length * direction_vector
+                projection_point = target_segment[0] + projection_length_1 * direction_vector
                 radial_distance = np.linalg.norm(point - projection_point)
                 # Check if the point is within the cylinder's radius
                 if radial_distance <= margin:
@@ -118,38 +114,41 @@ class Segment3D:
         print(f"number of gap_points {len(filtered_gap_points)}, point_threshold {point_threshold}")
         # Step 2: Merge segments if there are enough points in the gap
         if len(filtered_gap_points) >= point_threshold:
-            new_P1, new_P2 = sorted_points[0], sorted_points[-1]
-            return Segment3D(new_P1, new_P2)
+            new_p1, new_p2 = sorted_points[0], sorted_points[-1]
+            return Segment3D(new_p1, new_p2)
 
         return None
 
-    def binary_search_crop(self, start, end, points, p1_flag=True, margin_ratio=0.02, margin=1e-1, balance_threshold=0.6):
+    def binary_search_crop(self, start, end, points, p1_flag=True, margin_length=0.02, margin=1e-1,
+                           balance_threshold=0.6):
         """
         Binary search to adjust the segment's endpoint for cropping based on point distribution across a plane.
         Parameters:
-        - start: The starting point of the segment (either P1 or P2).
-        - end: The middle point or the opposite end to crop towards.
+        - start: The starting point of the segment (either P1 or midpoint).
+        - end: The ending point of the segment (either P2 or midpoint).
         - points: List of 3D points.
-        - side: Indicates whether it's P1 or P2 being cropped.
-        - margin_ratio: Proportion of the segment length to stop binary search.
+        - p1_flag: Flag to indicate if the start point is P1 or midpoint.
+        - margin_length: The length of the segment to evaluate the density.
+        - margin: The radius of the cylinder to filter points around the segment.
         - balance_threshold: The proportion difference threshold to determine if we should stop or continue cropping.
         """
-        segment_length = np.linalg.norm(start - end)
-        tolerance_length = segment_length * margin_ratio
         idx = 0
+        p1 = start
+        p2 = end
         while True:
             idx = idx + 1
             if idx > 10:
                 break
             # Step 1: Compute the midpoint and create a new sub-segment
             midpoint = (start + end) / 2
-            sub_segment = Segment3D(midpoint - self.dir_ * tolerance_length / 2,
-                                    midpoint + self.dir_ * tolerance_length / 2)
+            sub_segment = Segment3D(midpoint - self.dir_ * margin_length,
+                                    midpoint + self.dir_ * margin_length)
 
             filter_points, _ = sub_segment.filter_points_within_segment_or_gap(points, margin)
             # Step 2: Define the plane using the direction of the segment (normal vector of the plane)
             # The plane will be orthogonal to the direction vector and pass through the midpoint
             normal_vector = self.dir_  # This is the normal to the plane
+
             # Calculate distances of points from the plane
             def point_plane_distance(p):
                 """Calculate the signed distance of a point from the plane defined by the segment direction."""
@@ -177,6 +176,10 @@ class Segment3D:
             print(f"positive_count: {positive_count}")
             print(f"negative_count: {negative_count}")
             print(f"proportion_diff: {proportion_diff}")
+            if p1_flag:
+                print(f"midpoint from P1: {np.linalg.norm(p1 - midpoint) / np.linalg.norm(p2 - p1) * 100}%")
+            else:
+                print(f"midpoint from P2: {np.linalg.norm(p2 - midpoint) / np.linalg.norm(p2 - p1) * 100}%")
             # Step 5: If the proportion difference is large, continue cropping
             if proportion_diff > balance_threshold:
                 # If the difference is large, move towards the side with fewer points
@@ -192,45 +195,46 @@ class Segment3D:
                     start = midpoint  # Move the end point closer to the middle
         return end if p1_flag else start
 
-    def try_cropping(self, points, margin_ratio=0.02, margin=1e-1, density_threshold_ratio=0.5, balance_threshold=0.6):
+    def try_cropping(self, points, segment_ratio=0.02, margin=1e-1, density_threshold_ratio=0.5, balance_threshold=0.6):
         """
         Crop the segment using a binary search approach if the point density near the ends is much lower than in the middle.
         Parameters:
-        - margin_ratio: The proportion of the segment near each end to evaluate density.
+        - segment_ratio: The proportion of the segment near each end to evaluate density.
+        - margin: The radius of the cylinder to filter points around the segment.
         - density_threshold_ratio: The ratio of density between the ends and the middle for cropping.
         - gap_threshold: Distance threshold for considering points near the segment.
-        - tolerance: The threshold for stopping the binary search.
+        - balance_threshold: The threshold for stopping the binary search.
         """
         # Step 1: Define the margin for the ends
         segment_length = self.length()
-        margin_length = segment_length * margin_ratio
+        margin_length = segment_length * segment_ratio
         # Step 2: Calculate the density near the ends
-        P1_end_region = self.P1_ + self.dir_ * margin_length
-        P2_end_region = self.P2_ - self.dir_ * margin_length
-        Middle = (self.P1_ + self.P2_) / 2
-        Middle_start = Middle - self.dir_ * margin_length * 20
-        Middle_end = Middle + self.dir_ * margin_length * 20
+        p1_end_region = self.P1_ + self.dir_ * margin_length
+        p2_end_region = self.P2_ - self.dir_ * margin_length
+        middle = (self.P1_ + self.P2_) / 2
+        middle_start = middle - self.dir_ * margin_length * 20
+        middle_end = middle + self.dir_ * margin_length * 20
         # Calculate densities
-        p1_segment = Segment3D(self.P1_, P1_end_region)
-        P1_density, _ = p1_segment.calculate_density(points, margin)
-        print(f"P1_density: {P1_density}")
-        p2_segment = Segment3D(P2_end_region, self.P2_)
-        P2_density, _ = p2_segment.calculate_density(points, margin)
-        print(f"P2_density: {P2_density}")
+        p1_segment = Segment3D(self.P1_, p1_end_region)
+        p1_density, _ = p1_segment.calculate_density(points, margin)
+        print(f"P1_density: {p1_density}")
+        p2_segment = Segment3D(p2_end_region, self.P2_)
+        p2_density, _ = p2_segment.calculate_density(points, margin)
+        print(f"P2_density: {p2_density}")
         # Step 3: Calculate the density in the middle region of the segment
-        middle_segment = Segment3D(Middle_start, Middle_end)
+        middle_segment = Segment3D(middle_start, middle_end)
         middle_density, _ = middle_segment.calculate_density(points, margin)
         print(f"middle_density: {middle_density}")
         # Crop P1 side if needed
         is_cropping = False
         mid_point = (self.P1_ + self.P2_) / 2
-        if P1_density < middle_density * density_threshold_ratio:
-            self.P1_ = self.binary_search_crop(self.P1_, mid_point, points, True, margin_ratio, margin,
+        if p1_density < middle_density * density_threshold_ratio:
+            self.P1_ = self.binary_search_crop(self.P1_, mid_point, points, True, margin_length, margin,
                                                balance_threshold)
             is_cropping = True
         # Crop P2 side if needed
-        if P2_density < middle_density * density_threshold_ratio:
-            self.P2_ = self.binary_search_crop(mid_point, self.P2_, points, False, margin_ratio, margin,
+        if p2_density < middle_density * density_threshold_ratio:
+            self.P2_ = self.binary_search_crop(mid_point, self.P2_, points, False, margin_length, margin,
                                                balance_threshold)
             is_cropping = True
         # Update self

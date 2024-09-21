@@ -14,6 +14,8 @@
 #python line3d.py -s /home/c/chenggan/datasets/angularSphere2 -m /home/c/chenggan/gaussian-splatting/results/angularSphere2 --baseline 2
 #python train.py -s /home/c/chenggan/datasets/cone1 -m /home/c/chenggan/gaussian-splatting/results/cone1
 #python line3d.py -s /home/c/chenggan/datasets/cone1 -m /home/c/chenggan/gaussian-splatting/results/cone1 --baseline 2
+#python train.py -s /home/c/chenggan/datasets/cube -m /home/c/chenggan/gaussian-splatting/results/cube
+#python line3d.py -s /home/c/chenggan/datasets/cube -m /home/c/chenggan/gaussian-splatting/results/cube --baseline 2
 #python train.py -s /home/c/chenggan/datasets/simple1 -m /home/c/chenggan/gaussian-splatting/results/simple1
 python line3d.py -s /home/c/chenggan/datasets/simple1 -m /home/c/chenggan/gaussian-splatting/results/simple1 --baseline 2
 #python train.py -s /home/c/chenggan/datasets/simple2 -m /home/c/chenggan/gaussian-splatting/results/simple2
