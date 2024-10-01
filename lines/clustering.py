@@ -58,7 +58,7 @@ def calculate_weight(seg1, seg2, dist_threshold=0.1):
     smaller_seg = seg1 if seg1.length() <= seg2.length() else seg2
     # 1. Distance weight
     dist = line_segment_distance(longer_seg, smaller_seg)
-    distance_threshold = dist_threshold * smaller_seg.length()
+    distance_threshold = dist_threshold * longer_seg.length()
     distance_threshold = distance_threshold if distance_threshold > 0.1 else 0.1
     dist_w = 1 / (1 + 2 * (dist / distance_threshold) ** 2)  # Quadratic decay based on distance
     print(f"Distance : {dist} Distance weight : {dist_w}")
@@ -148,5 +148,10 @@ def get_clusters(segments: List[Segment3D], universe: CLUniverse):
         if root not in clusters:
             clusters[root] = []
         clusters[root].append(i)
+
+    # sort each cluster by calculated weight with respect to the root
+    for root, cluster in clusters.items():
+        if len(cluster) > 1:
+            cluster.sort(key=lambda i: calculate_weight(segments[root], segments[i]))
 
     return clusters

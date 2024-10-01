@@ -1,7 +1,8 @@
-import torch
 from typing import List
 import collections
 import numpy as np
+from torch.nn.init import normal
+from zipp import translate
 
 Segment2D = collections.namedtuple(
     "Segment2D", ["camID", "segID", "coords"])
@@ -9,9 +10,12 @@ Segment2D = collections.namedtuple(
 
 class Segment3D:
     def __init__(self, P1: np.ndarray = None, P2: np.ndarray = None):
+        self.filter_points_idx_ = None
         self.density_ = None
         self.point_count_ = None
         self.is_cuda = False
+        self.rmse_ = None
+        self.residuals_ = None
         if P1 is None or P2 is None:
             self.P1_ = np.array([0.0, 0.0, 0.0])
             self.P2_ = np.array([0.0, 0.0, 0.0])
@@ -58,22 +62,41 @@ class Segment3D:
     def valid(self) -> bool:
         return self.valid_
 
-    def filter_points_within_segment_or_gap(self, points, margin=1e-1, is_gap=False, other=None):
+    def rmse(self) -> float:
+        return self.rmse_
+
+    def filter_points_idx(self) -> List:
+        return self.filter_points_idx_
+
+    def density(self) -> float:
+        return self.density_
+
+    def point_count(self) -> int:
+        return self.point_count_
+
+    def filter_points_within_segment_or_gap(self, points, margin=1e-1, is_gap=False, other=None, optimize=False, recalculate=False):
         if is_gap:
             if other is None:
                 raise ValueError("Other segment must be provided for gap filtering.")
             candidates = [self.P1_, self.P2_, other.P1_, other.P2_]
             sorted_candidates = sorted(candidates, key=lambda p: np.dot(p - self.P1_, self.dir_))
-            target_segment = [sorted_candidates[1], sorted_candidates[2]]
+            origin_segment_direction = sorted_candidates[2] - sorted_candidates[1]
+            sorted_candidates[1] = sorted_candidates[1] + origin_segment_direction * 0.02
+            sorted_candidates[2] = sorted_candidates[2] - origin_segment_direction * 0.02
+            target_segment = sorted_candidates[1:3]
         else:
+            if self.filter_points_idx_ is not None and not recalculate:
+                return self.filter_points_idx_, [self.P1_, self.P2_]
             sorted_candidates = [self.P1_, self.P2_]
             target_segment = sorted_candidates
         # The main axis (segment direction)
         direction_vector = target_segment[1] - target_segment[0]
         direction_vector /= np.linalg.norm(direction_vector)
         # Step 2: Filter points inside the cylindrical region
-        filtered_points = []
-        for point in points:
+        filtered_points_idx = []
+        filtered_points_dist = []
+        # TODO: Optimize the filtering process based on the 3DGS features, not just the distance
+        for i, point in enumerate(points):
             # Project the point onto the line segment (cylinder axis)
             start_to_point = point - target_segment[0]
             projection_length_1 = np.dot(start_to_point, direction_vector)
@@ -86,41 +109,100 @@ class Segment3D:
                 radial_distance = np.linalg.norm(point - projection_point)
                 # Check if the point is within the cylinder's radius
                 if radial_distance <= margin:
-                    filtered_points.append(point)
-        return filtered_points, sorted_candidates
+                    filtered_points_idx.append(i)
+                    filtered_points_dist.append(radial_distance)
 
-    def calculate_density(self, points, margin=1e-1):
+        filtered_points_idx = np.array(filtered_points_idx)
+        filtered_points_dist = np.array(filtered_points_dist)
+        # If optimize is True, only return the top 20% of points with the smallest distance
+        if optimize:
+            sorted_idx = np.argsort(filtered_points_dist)
+            filtered_points_idx = filtered_points_idx[sorted_idx[:int(len(sorted_idx) * 0.2)]]
+        elif not is_gap:
+            self.point_count_ = len(filtered_points_idx)
+            self.filter_points_idx_ = filtered_points_idx
+        return filtered_points_idx, sorted_candidates
+
+    def calculate_rmse(self, points: List[np.ndarray], optimize=False, margin=1e-1):
+        """Calculate the root mean squared error (RMSE) of the segment to a set of 3D points."""
+        if self.rmse_ is not None and not optimize:
+            return self.rmse_
+        if optimize:
+            distances = [self.distance_point_to_line(p) for p in points]
+            return np.sqrt(np.mean(np.square(distances)))
+
+        filtered_points_idx, _ = self.filter_points_within_segment_or_gap(points, margin)
+        if len(filtered_points_idx) == 0:
+            self.rmse_ = -1
+            return -1
+        points = points[filtered_points_idx]
+        distances = [self.distance_point_to_line(p) for p in points]
+        self.rmse_ = np.sqrt(np.mean(np.square(distances)))
+        return self.rmse_
+
+    def compute_gradient(self, points: List[np.ndarray], epsilon=1e-6, margin=1e-1):
+        """Compute numerical gradient of the RMSE w.r.t. the segment's endpoints."""
+        grad_p = np.zeros_like(self.P1_)
+
+        initial_rmse = self.calculate_rmse(points, True, margin)
+        for i in range(len(self.P1_)):
+            # Perturb P1
+            self.P1_[i] += epsilon
+            self.P2_[i] += epsilon
+            rmse_p = self.calculate_rmse(points, True, margin)
+            grad_p[i] = (rmse_p - initial_rmse) / epsilon
+            self.P1_[i] -= epsilon
+            self.P2_[i] -= epsilon
+
+        return grad_p
+
+    def optimize_line(self, points: List[np.ndarray], learning_rate=1e-2, max_iters=5, epsilon=1e-3, margin=1e-1):
+        """Optimize the segment's endpoints to minimize the RMSE to a set of 3D points."""
+        for i in range(max_iters):
+            filtered_points_idx, _ = self.filter_points_within_segment_or_gap(points, margin, optimize=True)
+            if len(filtered_points_idx) == 0:
+                break
+            grad_p = self.compute_gradient(points[filtered_points_idx], epsilon, margin)
+            # print(f"Iteration {i}, RMSE: {self.rmse_}")
+            self.P1_ -= learning_rate * grad_p
+            self.P2_ -= learning_rate * grad_p
+        return self.calculate_rmse(points, True, margin)
+
+    def calculate_density(self, points, margin=1e-1, recalculate=False):
         """Calculate the density of points around the segment within a certain gap threshold."""
-        if self.density_ is not None:
+        if self.density_ is not None and not recalculate:
             return self.density_, self.point_count_
-        filtered_points, _ = self.filter_points_within_segment_or_gap(points, margin)
-        density = len(filtered_points) / self.length_ if self.length_ > 0 else 0
+        _, _ = self.filter_points_within_segment_or_gap(points, margin, recalculate=True)
+        density = self.point_count_ / self.length_ if self.length_ > 0 else 0
         self.density_ = density
-        self.point_count_ = len(filtered_points)
-        return density, len(filtered_points)
+        return density, self.point_count_
 
-    def try_collinear_merge(self, other, points, margin=1e-1):
+    def try_segments_merge(self, other, points, margin=1e-1):
         """Try to merge two segments if they are collinear and have enough points in the gap."""
-        # Step 1: Identify points in the gap region
+        # Step 1: Check if the two segments are collinear or nearly collinear
+        dot_product = abs(np.dot(self.dir_, other.dir_))
+        if dot_product < np.cos(np.radians(5)):
+            return None
+
+        # Step 2: Identify points in the gap region
         density1, count1 = self.calculate_density(points, margin)
         print(f"density1: {density1}, count1: {count1}")
         density2, count2 = other.calculate_density(points, margin)
         print(f"density2: {density2}, count2: {count2}")
         filtered_gap_points, sorted_points = self.filter_points_within_segment_or_gap(points, margin, is_gap=True,
                                                                                       other=other)
+        num_gap_points = len(filtered_gap_points)
         average_density = (density1 + density2) / 2
         expected_length = np.linalg.norm(sorted_points[1] - sorted_points[2])
-        point_threshold = int(average_density * expected_length) * 0.8
-        print(f"number of gap_points {len(filtered_gap_points)}, point_threshold {point_threshold}")
+        point_threshold = int(average_density * expected_length)
         # Step 2: Merge segments if there are enough points in the gap
-        if len(filtered_gap_points) >= point_threshold:
-            new_p1, new_p2 = sorted_points[0], sorted_points[-1]
-            return Segment3D(new_p1, new_p2)
+        print(f"num_gap_points: {num_gap_points}, expected_length: {expected_length}, point_threshold: {point_threshold}")
+        if num_gap_points < point_threshold:
+            return None
 
-        return None
+        return Segment3D(sorted_points[0], sorted_points[-1])
 
-    def binary_search_crop(self, start, end, points, p1_flag=True, margin_length=0.02, margin=1e-1,
-                           balance_threshold=0.6):
+    def binary_search_crop(self, start, end, points, p1_flag=True, margin_length=0.02, margin=1e-1, balance_threshold=0.6):
         """
         Binary search to adjust the segment's endpoint for cropping based on point distribution across a plane.
         Parameters:
@@ -137,27 +219,31 @@ class Segment3D:
         p2 = end
         while True:
             idx = idx + 1
-            if idx > 10:
-                break
             # Step 1: Compute the midpoint and create a new sub-segment
             midpoint = (start + end) / 2
-            sub_segment = Segment3D(midpoint - self.dir_ * margin_length,
-                                    midpoint + self.dir_ * margin_length)
+            if idx > 10:
+                return midpoint
+            sub_segment = Segment3D(midpoint - self.dir_ * margin_length * 5,
+                                    midpoint + self.dir_ * margin_length * 5)
+            filter_points_idx, _ = sub_segment.filter_points_within_segment_or_gap(points, margin)
+            if len(filter_points_idx) == 0:
+                # If there are no points, continue cropping
+                if p1_flag:
+                    start = midpoint  # Move the start point closer to the middle
+                else:
+                    end = midpoint  # Move the end point closer to the middle
+                continue
+            normal_vector = self.dir()
 
-            filter_points, _ = sub_segment.filter_points_within_segment_or_gap(points, margin)
-            # Step 2: Define the plane using the direction of the segment (normal vector of the plane)
-            # The plane will be orthogonal to the direction vector and pass through the midpoint
-            normal_vector = self.dir_  # This is the normal to the plane
-
-            # Calculate distances of points from the plane
-            def point_plane_distance(p):
+            def point_plane_distance(point):
                 """Calculate the signed distance of a point from the plane defined by the segment direction."""
-                point_to_midpoint = p - midpoint
+                point_to_midpoint = point - midpoint
                 return np.dot(point_to_midpoint, normal_vector)  # Dot product gives the signed distance
 
             # Classify points based on which side of the plane they are on
             points_on_positive_side = []
             points_on_negative_side = []
+            filter_points = points[filter_points_idx]
             for point in filter_points:
                 distance = point_plane_distance(point)
                 if distance > 0:
@@ -170,8 +256,6 @@ class Segment3D:
             negative_count = len(points_on_negative_side)
             # Calculate the proportion difference between two sides
             total_points = positive_count + negative_count
-            if total_points == 0:
-                break  # If there are no points, stop cropping
             proportion_diff = abs(positive_count - negative_count) / total_points
             print(f"positive_count: {positive_count}")
             print(f"negative_count: {negative_count}")
@@ -193,7 +277,6 @@ class Segment3D:
                     end = midpoint  # Move the start point closer to the middle
                 else:
                     start = midpoint  # Move the end point closer to the middle
-        return end if p1_flag else start
 
     def try_cropping(self, points, segment_ratio=0.02, margin=1e-1, density_threshold_ratio=0.5, balance_threshold=0.6):
         """
@@ -216,10 +299,10 @@ class Segment3D:
         middle_end = middle + self.dir_ * margin_length * 20
         # Calculate densities
         p1_segment = Segment3D(self.P1_, p1_end_region)
-        p1_density, _ = p1_segment.calculate_density(points, margin)
+        p1_density, p1_count = p1_segment.calculate_density(points, margin)
         print(f"P1_density: {p1_density}")
         p2_segment = Segment3D(p2_end_region, self.P2_)
-        p2_density, _ = p2_segment.calculate_density(points, margin)
+        p2_density, p2_count = p2_segment.calculate_density(points, margin)
         print(f"P2_density: {p2_density}")
         # Step 3: Calculate the density in the middle region of the segment
         middle_segment = Segment3D(middle_start, middle_end)
@@ -229,19 +312,16 @@ class Segment3D:
         is_cropping = False
         mid_point = (self.P1_ + self.P2_) / 2
         if p1_density < middle_density * density_threshold_ratio:
-            self.P1_ = self.binary_search_crop(self.P1_, mid_point, points, True, margin_length, margin,
-                                               balance_threshold)
+            self.P1_ = self.binary_search_crop(self.P1_, mid_point, points, True, margin_length, margin, balance_threshold)
             is_cropping = True
         # Crop P2 side if needed
         if p2_density < middle_density * density_threshold_ratio:
-            self.P2_ = self.binary_search_crop(mid_point, self.P2_, points, False, margin_length, margin,
-                                               balance_threshold)
+            self.P2_ = self.binary_search_crop(mid_point, self.P2_, points, False, margin_length, margin, balance_threshold)
             is_cropping = True
         # Update self
         self.length_ = np.linalg.norm(self.P1_ - self.P2_)
 
         return is_cropping
-
 
 class LineCluster3D:
     def __init__(self, seg3D: Segment3D = None, residuals: List = None, ref_view: int = 0):
@@ -284,3 +364,120 @@ class FinalLine3D:
 
     def underlyingCluster(self) -> LineCluster3D:
         return self.underlyingCluster_
+
+
+def segment_projection(seg1: Segment3D, seg2: Segment3D) -> bool:
+    """Check if one segment can be projected onto another segment."""
+    # Check if one endpoint of seg1 can be projected onto seg2 or vice versa
+    short_seg = seg1 if seg1.length() < seg2.length() else seg2
+    long_seg = seg1 if seg1.length() >= seg2.length() else seg2
+    for p in [short_seg.P1(), short_seg.P2()]:
+        long_seg_p1_to_p = p - long_seg.P1()
+        long_seg_p2_to_p = p - long_seg.P2()
+        if np.dot(long_seg_p1_to_p, long_seg.dir()) > 0 and np.dot(long_seg_p2_to_p, -long_seg.dir()) > 0:
+            return True
+    return False
+
+
+def join_segments(seg1: Segment3D, seg2: Segment3D, points: List[np.ndarray]):
+    """Join two segments into a single segment if possible."""
+    # Check if one endpoint of seg1 which is closer to any endpoint of seg2 is close enough to be joined with seg2
+    endpoints = [seg1.P1(), seg1.P2(), seg2.P1(), seg2.P2()]
+    endpoints = sorted(endpoints, key=lambda x: np.linalg.norm(x - seg1.P1()))
+    gap_length = np.linalg.norm(endpoints[1] - endpoints[2])
+    if gap_length > seg1.length() * 0.5 or gap_length > seg2.length() * 0.5:
+        print("Gap is too large.")
+        return None
+    new_seg = seg1.try_segments_merge(seg2, points)
+    if new_seg is not None:
+        return new_seg
+    return None
+
+
+def merge_segments(seg1: Segment3D, seg2: Segment3D, points: List[np.ndarray], margin=1e-1, dist_threshold=0.1):
+    """Merge two segments into a single segment if possible."""
+    short_seg = seg1 if seg1.length() < seg2.length() else seg2
+    long_seg = seg1 if seg1.length() >= seg2.length() else seg2
+    short_seg.calculate_rmse(points, False, margin)
+    long_seg.calculate_rmse(points, False, margin)
+    # Check if two segments are collinear or nearly collinear
+    dot_product = abs(np.dot(short_seg.dir(), long_seg.dir()))
+    if dot_product < np.cos(np.radians(20)):
+        print("Segments are not nearly collinear.")
+        return None
+    # Check if this two segments are close enough
+    if long_seg.distance_point_to_line(short_seg.P1()) > long_seg.length() * dist_threshold or \
+            long_seg.distance_point_to_line(short_seg.P2()) > long_seg.length() * dist_threshold:
+        print("Segments are not close enough.")
+        return None
+
+    # translate the short segment to the long segment with the distance of the proportion of the length of the long segment
+    # and vice versa
+    proportion = short_seg.length() / (short_seg.length() + long_seg.length())
+    short_seg_p1_to_long_seg = long_seg.P1() + long_seg.dir() * np.dot(short_seg.P1() - long_seg.P1(), long_seg.dir()) - short_seg.P1()
+    short_seg_p2_to_long_seg = long_seg.P1() + long_seg.dir() * np.dot(short_seg.P2() - long_seg.P1(), long_seg.dir()) - short_seg.P2()
+    translate_dir = short_seg_p1_to_long_seg if np.linalg.norm(short_seg_p1_to_long_seg) < np.linalg.norm(short_seg_p2_to_long_seg) else short_seg_p2_to_long_seg
+    new_short_seg = Segment3D(short_seg.P1() + translate_dir * (1 - proportion), short_seg.P2() + translate_dir * (1 - proportion))
+    new_short_seg.calculate_rmse(points, False, margin)
+    new_long_seg = Segment3D(long_seg.P1() - translate_dir * proportion, long_seg.P2() - translate_dir * proportion)
+    new_long_seg.calculate_rmse(points, False, margin)
+    if new_short_seg.rmse() > short_seg.rmse() and new_long_seg.rmse() > long_seg.rmse():
+        print(f"The area between the segments is not dense enough.")
+        return None
+
+    # return the segment if point_count is the highest among the five segments
+    seg_list = [short_seg, long_seg, new_short_seg, new_long_seg]
+    seg_list = sorted(seg_list, key=lambda x: x.calculate_rmse(points, False, margin) / x.length())
+    return seg_list[0]
+
+
+def get_new_lines(new_segments: List[Segment3D], points: List[np.ndarray], margin=1e-1) -> FinalLine3D:
+    """Get the new lines from the segments and points."""
+    # Create new lines from the new_segments list
+    # Two types of creation:
+    # 1. Join two segments into a single line which has two endpoints chosen from the two segments,
+    #    - the endpoints of two segments are not projected onto another segment, and
+    #    - the density of points in the gap region is high enough, and
+    #    - the density of the new line is high enough.
+    # 2. Merge segments into a single line which is one of the segments or the average segment of the two segments,
+    #    - if one segment's endpoint can be projected onto the other segment, and
+    #    - the density of each segment is high enough, and
+    #    - the average segment of the two segments has a high density.
+
+    # choose two segments and try to join them or merge them, then remove the two segments from the list and
+    # add the new segment to the list if successful, if not successful, try the next pair of segments
+    # if no pair of segments can be joined or merged, break the loop
+    # after the loop, create new lines from the remaining segments in the list
+    while len(new_segments) > 0:
+        is_merged = False
+        for i in range(len(new_segments)):
+            for j in range(i + 1, len(new_segments)):
+                if segment_projection(new_segments[i], new_segments[j]):
+                    # Try to merge two segments
+                    print(f"Try to merge two segments: {i} length={new_segments[i].length()}, {j} length={new_segments[j].length()}")
+                    new_line = merge_segments(new_segments[i], new_segments[j], points)
+                    if new_line is not None:
+                        print(f"Segments {i} and {j} are merged, new line length={new_line.length()}")
+                else:
+                    # Try to join two segments
+                    print(f"Try to join two segments: {i} length={new_segments[i].length()}, {j} length={new_segments[j].length()}")
+                    new_line = join_segments(new_segments[i], new_segments[j], points)
+                    if new_line is not None:
+                        print(f"Segments {i} and {j} are joined, new line length={new_line.length()}")
+                if new_line is not None:
+                    new_segments.pop(j)
+                    new_segments.pop(i)
+                    new_line.calculate_rmse(points, False, margin)
+                    new_segments.append(new_line)
+                    is_merged = True
+                    break
+            if is_merged:
+                break
+        if not is_merged:
+            break
+
+    # Create new lines from the remaining segments
+    new_line = FinalLine3D()
+    new_line.set_segments(new_segments)
+
+    return new_line

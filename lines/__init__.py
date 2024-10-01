@@ -1,5 +1,9 @@
 import os
 import numpy as np
+from networkx.algorithms.bipartite.basic import density
+from sympy.physics.units import length
+from torch.utils.hipify.hipify_python import value
+
 from lines.segment3D import *
 from lines.clustering import *
 
@@ -114,6 +118,8 @@ class Line3D:
             return
 
         for i, current in enumerate(self.lines3D_):
+            if len(current.collinear3Dsegments_) == 1:
+                continue
             filename = os.path.join(output_folder, self.file_name_ + f"_{i}.stl")
 
             with open(filename, 'w') as file:
@@ -141,25 +147,72 @@ class Line3D:
 
                 file.write("endsolid lineModel\n")
 
-    def cluster3Dsegments(self):
+    def cluster_3d_segments(self, points):
         segment_to_line = []
         segments = []
         for i, line in enumerate(self.lines3D_):
             for segment in line.collinear3Dsegments_:
                 segment_to_line.append(i)
                 segments.append(segment)
-        cluUniverse = perform_clustering(segments, segment_to_line)
-        clusters = get_clusters(segments, cluUniverse)
+        clu_universe = perform_clustering(segments, segment_to_line)
+        clusters = get_clusters(segments, clu_universe)
 
         self.lines3D_.clear()
         idx = 0
         for k, v in clusters.items():
+            idx += 1
             print(f"Cluster {idx}: root={k}, size={len(v)}, segments={v}")
             new_segments = []
-            for segID in v:
-                new_segments.append(segments[segID])
-            final_line = FinalLine3D()
-            final_line.set_segments(new_segments)
-            self.lines3D_.append(final_line)
+            if len(v) == 1:
+                new_line = FinalLine3D()
+                new_line.set_segments([segments[v[0]]])
+            else:
+                for segID in v:
+                    new_segments.append(segments[segID])
+                new_line = get_new_lines(new_segments, points)
+            self.lines3D_.append(new_line)
 
-        return self.lines3D_
+        return
+
+    def evaluate3Dlines(self, path, prefix, points):
+        if len(self.lines3D_) == 0:
+            print(self.prefix_wng_, "no 3D lines to evaluate!")
+            return
+
+        # Calculate the average RMSE and density of each 3D segment
+        rmse_list = []
+        points_idx_list = []
+        density_list = []
+        length_list = []
+        for i, line in enumerate(self.lines3D_):
+            coll = line.collinear3Dsegments_
+            for j, s in enumerate(coll):
+                s.calculate_density(points, recalculate=True)
+                s.calculate_rmse(points)
+                if s.rmse() == -1:
+                    continue
+                rmse_list.append(s.rmse())
+                points_idx_list.append(s.filter_points_idx())
+                density_list.append(s.density())
+                length_list.append(s.length())
+
+
+        # Calculate the average RMSE and density of all 3D segments
+        avg_rmse = np.mean(rmse_list)
+        points_idx_list = np.unique(np.concatenate(points_idx_list))
+        avg_density = np.mean(density_list)
+        total_length = np.sum(length_list)
+        avg_length = np.mean(length_list)
+        val_line3D = avg_density / avg_rmse
+
+        with open(os.path.join(path, f"3Dlines_evaluation.txt"), "w" if prefix == "before" else "a") as f:
+            f.write(f"=================={prefix} 3D lines evaluation==================\n")
+            f.write(f"Average RMSE: {avg_rmse}\n")
+            f.write(f"Points covered: {len(points_idx_list) / len(points) * 100}%\n")
+            f.write(f"Average Density: {avg_density}\n")
+            f.write(f"Total Length: {total_length}\n")
+            f.write(f"Average Length: {avg_length}\n")
+            f.write(f"Value of 3D lines: {val_line3D}\n")
+            f.write("================================================================\n")
+
+        return
