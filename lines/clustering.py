@@ -59,15 +59,15 @@ def calculate_weight(seg1, seg2, dist_threshold=0.1):
     # 1. Distance weight
     dist = line_segment_distance(longer_seg, smaller_seg)
     distance_threshold = dist_threshold * longer_seg.length()
-    distance_threshold = distance_threshold if distance_threshold > 0.1 else 0.1
+    distance_threshold = distance_threshold if distance_threshold > dist_threshold else dist_threshold
     dist_w = 1 / (1 + 2 * (dist / distance_threshold) ** 2)  # Quadratic decay based on distance
-    print(f"Distance : {dist} Distance weight : {dist_w}")
+    # print(f"Distance : {dist} Distance weight : {dist_w}")
 
     # 2. Angle weight
     cos_theta = np.dot(seg1.dir(), seg2.dir())
     angle_w = abs(np.clip(cos_theta, -1.0,
                           1.0))  # cos(angle) gives weight close to 1 for small angles, close to 0 for large angles
-    print(f"Angle : {np.arccos(cos_theta) * 180 / np.pi} Angle weight : {angle_w}")
+    # print(f"Angle : {np.arccos(cos_theta) * 180 / np.pi} Angle weight : {angle_w}")
 
     # 3. Length ratio weight
     length_ratio = longer_seg.length() / smaller_seg.length()
@@ -75,14 +75,14 @@ def calculate_weight(seg1, seg2, dist_threshold=0.1):
     # if the angle is small, length ratio is less important.
     # if the angle is large, the larger length ratio is more important.
     length_w = np.tanh(length_ratio ** 2 * angle_w) if angle_w > 0.5 else 0
-    print(f"Length ratio : {length_ratio} Length weight : {length_w}")
+    # print(f"Length ratio : {length_ratio} Length weight : {length_w}")
 
     # Final weight is a combination of distance, angle, and length ratio
     weight = dist_w * length_w
     return weight
 
 
-def perform_clustering(segments: List[Segment3D], index: List, weight_threshold=0.5, dist_threshold=0.1, c=1):
+def perform_clustering(segments: List[Segment3D], index: List, dist_threshold=0.1, weight_threshold=0.5, c=1.5):
     """
     Perform clustering of 3D line segments based on proximity, parallelism, and length ratio.
 
@@ -105,10 +105,10 @@ def perform_clustering(segments: List[Segment3D], index: List, weight_threshold=
                 continue
 
             weight = calculate_weight(segments[i], segments[j], dist_threshold)
-            print(f"Weight between {i} and {j}: {weight}")
+            # print(f"Weight between {i} and {j}: {weight}")
             # If weight is sufficiently large, consider it a valid edge
             if weight >= weight_threshold:  # You can adjust this threshold as needed
-                print(f"Adding edge between {i} and {j}")
+                # print(f"Adding edge between {i} and {j}")
                 edges.append(CLEdge(i, j, weight))
 
     # Step 2: Sort edges by weight
@@ -128,20 +128,6 @@ def perform_clustering(segments: List[Segment3D], index: List, weight_threshold=
                 root = universe.find(a)
                 threshold[root] = edge.w_ + c / universe.size(root)
 
-    return universe
-
-
-def get_clusters(segments: List[Segment3D], universe: CLUniverse):
-    """
-    Get the final clusters of 3D line segments.
-
-    Parameters:
-    - segments: List of Segment3D objects.
-    - universe: The CLUniverse object representing the final clusters.
-
-    Returns:
-    - clusters: A list of clusters, where each cluster contains a list of Segment3D objects.
-    """
     clusters = {}
     for i, seg in enumerate(segments):
         root = universe.find(i)
@@ -152,6 +138,28 @@ def get_clusters(segments: List[Segment3D], universe: CLUniverse):
     # sort each cluster by calculated weight with respect to the root
     for root, cluster in clusters.items():
         if len(cluster) > 1:
-            cluster.sort(key=lambda i: calculate_weight(segments[root], segments[i]))
+            # sort the cluster by the calculated weight of each two segments within the cluster
+            # calculate the weight of each two segments within the cluster
+            weights = {}
+            for i in range(len(cluster)):
+                for j in range(i + 1, len(cluster)):
+                    weight = calculate_weight(segments[cluster[i]], segments[cluster[j]], dist_threshold)
+                    weights[(i, j)] = weight
+            # sort the weights
+            sorted_weights = sorted(weights.items(), key=lambda x: x[1], reverse=True)
+            # sort the cluster based on the sorted weights
+            new_cluster_idx = []
+            for idx, _ in sorted_weights:
+                i, j = idx
+                # if i index and j index are not in the new cluster, add them to the new cluster
+                if i not in new_cluster_idx and j not in new_cluster_idx:
+                    new_cluster_idx.append(i)
+                    new_cluster_idx.append(j)
+            # add the remaining segments to the new cluster
+            for i in range(len(cluster)):
+                if i not in new_cluster_idx:
+                    new_cluster_idx.append(i)
+            # update the cluster
+            clusters[root] = [cluster[i] for i in new_cluster_idx]
 
     return clusters

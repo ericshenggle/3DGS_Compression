@@ -8,8 +8,14 @@
 #
 # For inquiries contact  george.drettakis@inria.fr
 #
+import sys
 
 import torch
+try:
+    import wandb
+    WANDB_FOUND = True
+except ImportError:
+    WANDB_FOUND = False
 
 from scene import Scene
 import os
@@ -27,7 +33,7 @@ from lines import Line3D
 from lines.utils import *
 
 
-def line3d_baseline2D(dataset: ModelParams, iteration: int):
+def line3d_baseline2D(dataset: ModelParams, iteration: int, write_colmap=True, write_visualSFM=False):
     with torch.no_grad():
         gaussians = GaussianModel(dataset.sh_degree)
         scene = Scene(dataset, gaussians, load_iteration=iteration)
@@ -56,6 +62,10 @@ def line3d_baseline2D(dataset: ModelParams, iteration: int):
             print(f"after project: {filtered_count}")
 
             view_means3D = means3D_with_ids[mask].detach().cpu().numpy()
+            screen_positions = screen_positions[mask].detach().cpu().numpy()
+            # adjust screen positions to the center of the pixel
+            screen_positions[:, 0] -= view.image_width / 2
+            screen_positions[:, 1] -= view.image_height / 2
 
             R = view.R
             T = view.T
@@ -69,36 +79,48 @@ def line3d_baseline2D(dataset: ModelParams, iteration: int):
 
             qvec = rotmat2qvec(np.transpose(R))
             tvec = T.tolist()
-            qvec_str = " ".join(map(str, qvec))
-            tvec_str = " ".join(map(str, tvec))
+            cam_center = -np.dot(R, T)
             cam_extrinsics.append(Image(
                 id=idx + 1, qvec=qvec, tvec=tvec,
                 camera_id=view.colmap_id, name=view.image_name,
-                xys=view_means3D[:, :2], point3D_ids=view_means3D[:, 3]))
+                xys=screen_positions, point3D_ids=view_means3D[:, -1]))
             cam_intrinsics.append(Camera(id=view.colmap_id,
                                          model="PINHOLE",
                                          width=width,
                                          height=height,
+                                         center=cam_center,
                                          params=np.array([focal_length_x, focal_length_y, width / 2, height / 2])))
 
-        dir_path = os.path.join(args.source_path, "colmap")
-        makedirs(dir_path, exist_ok=True)
-        write_extrinsics_text(cam_extrinsics, os.path.join(dir_path, "images.txt"))
-        write_intrinsics_text(cam_intrinsics, os.path.join(dir_path, "cameras.txt"))
-        write_points3D_text(means3D_with_ids, os.path.join(dir_path, "points3D.txt"))
+        # write the colmap text files
+        if write_colmap:
+            dir_path = os.path.join(dataset.source_path, "colmap")
+            makedirs(dir_path, exist_ok=True)
+            write_extrinsics_text(cam_extrinsics, os.path.join(dir_path, "images.txt"))
+            write_intrinsics_text(cam_intrinsics, os.path.join(dir_path, "cameras.txt"))
+            write_points3D_text(means3D_with_ids, os.path.join(dir_path, "points3D.txt"))
+
+        # # write visualSFM format
+        if write_visualSFM:
+            dir_path = os.path.join(dataset.source_path, "visualSFM")
+            makedirs(dir_path, exist_ok=True)
+            write_nvm_file(cam_extrinsics, cam_intrinsics, means3D_with_ids, os.path.join(dir_path, "result.nvm"))
 
 
-def line3d_baseline3D(dataset: ModelParams, iteration: int, pipeline: PipelineParams, skip_train: bool, skip_test: bool,
-                      paths: list, use_cuda: bool):
-    dir_path = os.path.join(args.source_path, "colmap")
+def line3d_baseline3D(dataset: ModelParams, iteration: int, pipeline: PipelineParams, use_cuda: bool):
+    dir_path = os.path.join(dataset.source_path, "colmap")
     line3d = Line3D()
     line3d.load3DLinesFromTXT(os.path.join(dir_path, "Line3D++"))
-    means3D = load_ply(os.path.join(args.model_path,
+    means3D = load_ply(os.path.join(dataset.model_path,
                                     "point_cloud",
                                     "iteration_" + str(iteration),
                                     "point_cloud.ply"))
 
-    line3d.evaluate3Dlines(dir_path, "before", means3D)
+    # downsample the 3D points
+    means3D = np.random.permutation(means3D)[:10000]
+    margin = get_margin(means3D)
+    print(f"Margin: {margin}")
+
+    line3d.evaluate3Dlines(dir_path, "before", means3D, margin=margin)
 
     # lines
     lines = line3d.lines3D()
@@ -107,12 +129,13 @@ def line3d_baseline3D(dataset: ModelParams, iteration: int, pipeline: PipelinePa
     for i, line in enumerate(lines):
         coll = line.collinear3Dsegments()
         for j, s in enumerate(coll):
-            s.optimize_line(means3D)
-            density, _ = s.calculate_density(means3D, recalculate=True)
+            s.optimize_line(means3D, margin=margin, tls=True)
+            density, _ = s.calculate_density(means3D, margin=margin, recalculate=True)
             print(f"After optimizing line {i}, segment {j}, density: {density}")
             density_list.append(density)
         line.set_segments(coll)
     density_threshold = calculate_density_threshold(density_list)
+    sys.stdout.flush()
 
     for i, line in enumerate(lines):
         coll = line.collinear3Dsegments()
@@ -120,7 +143,7 @@ def line3d_baseline3D(dataset: ModelParams, iteration: int, pipeline: PipelinePa
         print(f"Start dropping Line {i}")
         tmp_coll = []
         for j, s in enumerate(coll):
-            density, _ = s.calculate_density(means3D)
+            density, _ = s.calculate_density(means3D, margin=margin)
             if density < density_threshold:
                 print(f"Drop segment {j}, density: {density}")
                 continue
@@ -128,10 +151,11 @@ def line3d_baseline3D(dataset: ModelParams, iteration: int, pipeline: PipelinePa
         # merge the collinear segment3D if can
         if len(tmp_coll) > 1:
             print(f"Start merging Line {i}, segment3D count: {len(tmp_coll)}")
-            coll = merge_all_segments(coll, means3D)
+            coll = merge_all_segments(coll, means3D, margin=margin)
             if len(coll) < len(tmp_coll):
                 print(f"New number segment3D of Line{i} is {len(coll)}")
         line.set_segments(tmp_coll)
+    sys.stdout.flush()
 
     for i, line in enumerate(lines):
         coll = line.collinear3Dsegments()
@@ -139,15 +163,16 @@ def line3d_baseline3D(dataset: ModelParams, iteration: int, pipeline: PipelinePa
         print(f"Start cropping Line {i}")
         for j, s in enumerate(coll):
             print(f"Start cropping segment {j}, segment length: {s.length()}")
-            is_cropping = s.try_cropping(means3D)
-            if is_cropping:
-                print(f"New segment length: {s.length()}, P1 {s.P1()}, P2 {s.P2()}")
+            s.try_cropping(means3D, margin=margin)
+            s.calculate_density(means3D, margin=margin, recalculate=True)
+            s.calculate_rmse(means3D, margin=margin, recalculate=True)
+    sys.stdout.flush()
 
     # # represent the segment3D in the same 3D cluster
-    line3d.cluster_3d_segments(means3D)
+    line3d.cluster_3d_segments(means3D, margin=margin)
 
     line3d.Write3DlinesToSTL(os.path.join(dir_path, "Line3D++_test"))
-    line3d.evaluate3Dlines(dir_path, "after", means3D)
+    line3d.evaluate3Dlines(dir_path, "after", means3D, margin=margin)
     pass
 
 
@@ -163,15 +188,11 @@ if __name__ == "__main__":
     model = ModelParams(parser, sentinel=True)
     pipeline = PipelineParams(parser)
     parser.add_argument("--iteration", default=30000, type=int)
-    parser.add_argument("--skip_train", action="store_true")
-    parser.add_argument("--skip_test", action="store_true")
     parser.add_argument("--quiet", action="store_true")
-    parser.add_argument("--model_paths", nargs="*", type=str, default=[])
-    parser.add_argument("--combinedDebug", action="store_true")
-    parser.add_argument("--strategy", type=str, default="dist")
-    parser.add_argument("--render_image", action="store_true")
     parser.add_argument("--baseline", default=1, type=int)
     parser.add_argument("--use_cuda", action="store_true")
+    parser.add_argument("--wandb", action="store_true")
+    parser.add_argument("--write_visualSFM", action="store_true")
     args = get_combined_args(parser)
 
     # Initialize system state (RNG)
@@ -179,12 +200,13 @@ if __name__ == "__main__":
 
     if args.baseline == 1:
         # store the 3DGS coord information as colmap text format in source_path, in order to use line3D++
-        line3d_baseline2D(model.extract(args), args.iteration)
+        line3d_baseline2D(model.extract(args), args.iteration, write_visualSFM=args.write_visualSFM)
 
     if args.baseline == 2:
         # apply the line3D++ cluster algorithm directly on 3DGS
-        line3d_baseline3D(model.extract(args), args.iteration, pipeline.extract(args), args.skip_train, args.skip_test,
-                          args.model_paths, args.use_cuda)
+        if WANDB_FOUND and args.wandb:
+            wandb.init(project="3Dlines", dir=args.source_path, config=vars(args), name="line3D_" + args.model_path.split("/")[-1], group="baseline3D")
+        line3d_baseline3D(model.extract(args), args.iteration, pipeline.extract(args), args.use_cuda)
 
     # End time
     end_time = time.time()

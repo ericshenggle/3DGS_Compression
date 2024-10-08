@@ -6,6 +6,7 @@ from torch.utils.hipify.hipify_python import value
 
 from lines.segment3D import *
 from lines.clustering import *
+from lines.utils import calculate_3D_line_score_v3
 
 
 class Line3D:
@@ -147,15 +148,14 @@ class Line3D:
 
                 file.write("endsolid lineModel\n")
 
-    def cluster_3d_segments(self, points):
+    def cluster_3d_segments(self, points, margin=1e-1):
         segment_to_line = []
         segments = []
         for i, line in enumerate(self.lines3D_):
             for segment in line.collinear3Dsegments_:
                 segment_to_line.append(i)
                 segments.append(segment)
-        clu_universe = perform_clustering(segments, segment_to_line)
-        clusters = get_clusters(segments, clu_universe)
+        clusters = perform_clustering(segments, segment_to_line, dist_threshold=margin)
 
         self.lines3D_.clear()
         idx = 0
@@ -169,12 +169,12 @@ class Line3D:
             else:
                 for segID in v:
                     new_segments.append(segments[segID])
-                new_line = get_new_lines(new_segments, points)
+                new_line = get_new_lines(new_segments, points, margin)
             self.lines3D_.append(new_line)
 
         return
 
-    def evaluate3Dlines(self, path, prefix, points):
+    def evaluate3Dlines(self, path, prefix, points, margin=1e-1):
         if len(self.lines3D_) == 0:
             print(self.prefix_wng_, "no 3D lines to evaluate!")
             return
@@ -187,11 +187,11 @@ class Line3D:
         for i, line in enumerate(self.lines3D_):
             coll = line.collinear3Dsegments_
             for j, s in enumerate(coll):
-                s.calculate_density(points, recalculate=True)
-                s.calculate_rmse(points)
+                s.calculate_density(points, margin=margin)
+                s.calculate_rmse(points, margin=margin)
                 if s.rmse() == -1:
                     continue
-                rmse_list.append(s.rmse())
+                rmse_list.append(s.rmse() * 100) # scale RMSE from meters to centimeters
                 points_idx_list.append(s.filter_points_idx())
                 density_list.append(s.density())
                 length_list.append(s.length())
@@ -203,16 +203,25 @@ class Line3D:
         avg_density = np.mean(density_list)
         total_length = np.sum(length_list)
         avg_length = np.mean(length_list)
-        val_line3D = avg_density / avg_rmse
+        # Calculate the value of 3D lines
+        # A better 3D line should have a higher value
+        # A better 3D line means that it covers more points and has a higher density
+        # A better 3D line should have a lower RMSE
+        # A better 3D line should have a shorter length
+        # The contribution of each factor to the value of 3D lines should be adjusted before applying this function
+        covered_points_ratio = len(points_idx_list) / len(points)
+        score = calculate_3D_line_score_v3(covered_points_ratio, rmse_list, density_list, length_list,
+                                           w_points=2.0, w_density=0.5, w_RMSE=2.0, w_length=1.5,
+                                           use_log_scale=True)
 
         with open(os.path.join(path, f"3Dlines_evaluation.txt"), "w" if prefix == "before" else "a") as f:
-            f.write(f"=================={prefix} 3D lines evaluation==================\n")
+            f.write(f"==================== {prefix} optimizing ====================\n")
             f.write(f"Average RMSE: {avg_rmse}\n")
             f.write(f"Points covered: {len(points_idx_list) / len(points) * 100}%\n")
             f.write(f"Average Density: {avg_density}\n")
             f.write(f"Total Length: {total_length}\n")
             f.write(f"Average Length: {avg_length}\n")
-            f.write(f"Value of 3D lines: {val_line3D}\n")
-            f.write("================================================================\n")
+            f.write(f"Value of 3D lines: {score}\n")
+            f.write("==============================================================\n")
 
         return

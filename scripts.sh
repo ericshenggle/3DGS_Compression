@@ -1,29 +1,37 @@
 #!/bin/sh
 
 #SBATCH --job-name=3dgs
-#SBATCH --time=48:00:00
-#SBATCH --partition=long
+#SBATCH --time=120:00:00
+#SBATCH --partition=gpu-long
 #SBATCH --mail-type=END,FAIL
 #SBATCH --mail-user=cyang_09@u.nus.edu
 
 # sbatch --gres=gpu:nv:1 -C cuda75 scripts.sh
 
 #python train.py -s /home/c/chenggan/datasets/angularSphere1 -m /home/c/chenggan/gaussian-splatting/results/angularSphere1
-python line3d.py -s /home/c/chenggan/datasets/angularSphere1 -m /home/c/chenggan/gaussian-splatting/results/angularSphere1 --baseline 2
+#python line3d.py -s /home/c/chenggan/datasets/angularSphere1 -m /home/c/chenggan/gaussian-splatting/results/angularSphere1 --baseline 2
 #python train.py -s /home/c/chenggan/datasets/angularSphere2 -m /home/c/chenggan/gaussian-splatting/results/angularSphere2
-python line3d.py -s /home/c/chenggan/datasets/angularSphere2 -m /home/c/chenggan/gaussian-splatting/results/angularSphere2 --baseline 2
-#python train.py -s /home/c/chenggan/datasets/cone1 -m /home/c/chenggan/gaussian-splatting/results/cone1
-python line3d.py -s /home/c/chenggan/datasets/cone1 -m /home/c/chenggan/gaussian-splatting/results/cone1 --baseline 2
+#python line3d.py -s /home/c/chenggan/datasets/angularSphere2 -m /home/c/chenggan/gaussian-splatting/results/angularSphere2 --baseline 2
+#python train.py -s /home/c/chenggan/datasets/angularSphere2_2 -m /home/c/chenggan/gaussian-splatting/results/angularSphere2_2
+#python line3d.py -s /home/c/chenggan/datasets/angularSphere2_2 -m /home/c/chenggan/gaussian-splatting/results/angularSphere2_2 --baseline 2
 #python train.py -s /home/c/chenggan/datasets/cube -m /home/c/chenggan/gaussian-splatting/results/cube
-python line3d.py -s /home/c/chenggan/datasets/cube -m /home/c/chenggan/gaussian-splatting/results/cube --baseline 2
+#python line3d.py -s /home/c/chenggan/datasets/cube -m /home/c/chenggan/gaussian-splatting/results/cube --baseline 2
 #python train.py -s /home/c/chenggan/datasets/simple1 -m /home/c/chenggan/gaussian-splatting/results/simple1
-python line3d.py -s /home/c/chenggan/datasets/simple1 -m /home/c/chenggan/gaussian-splatting/results/simple1 --baseline 2
+#python line3d.py -s /home/c/chenggan/datasets/simple1 -m /home/c/chenggan/gaussian-splatting/results/simple1 --baseline 2
+#python train.py -s /home/c/chenggan/datasets/simple1_2 -m /home/c/chenggan/gaussian-splatting/results/simple1_2
+#python line3d.py -s /home/c/chenggan/datasets/simple1_2 -m /home/c/chenggan/gaussian-splatting/results/simple1_2 --baseline 2
+#python train.py -s /home/c/chenggan/datasets/simple1_3 -m /home/c/chenggan/gaussian-splatting/results/simple1_3
+#python line3d.py -s /home/c/chenggan/datasets/simple1_3 -m /home/c/chenggan/gaussian-splatting/results/simple1_3 --baseline 2
+#python train.py -s /home/c/chenggan/datasets/simple1_4 -m /home/c/chenggan/gaussian-splatting/results/simple1_4
+#python line3d.py -s /home/c/chenggan/datasets/simple1_4 -m /home/c/chenggan/gaussian-splatting/results/simple1_4 --baseline 2
 #python train.py -s /home/c/chenggan/datasets/simple2 -m /home/c/chenggan/gaussian-splatting/results/simple2
-python line3d.py -s /home/c/chenggan/datasets/simple2 -m /home/c/chenggan/gaussian-splatting/results/simple2 --baseline 2
+#python line3d.py -s /home/c/chenggan/datasets/simple2 -m /home/c/chenggan/gaussian-splatting/results/simple2 --baseline 2
 #python train.py -s /home/c/chenggan/datasets/simple3 -m /home/c/chenggan/gaussian-splatting/results/simple3
-python line3d.py -s /home/c/chenggan/datasets/simple3 -m /home/c/chenggan/gaussian-splatting/results/simple3 --baseline 2
+#python line3d.py -s /home/c/chenggan/datasets/simple3 -m /home/c/chenggan/gaussian-splatting/results/simple3 --baseline 2
 #python train.py -s /home/c/chenggan/datasets/simple4 -m /home/c/chenggan/gaussian-splatting/results/simple4
-python line3d.py -s /home/c/chenggan/datasets/simple4 -m /home/c/chenggan/gaussian-splatting/results/simple4 --baseline 2
+#python line3d.py -s /home/c/chenggan/datasets/simple4 -m /home/c/chenggan/gaussian-splatting/results/simple4 --baseline 2
+python line3d.py -s /home/c/chenggan/datasets/db/playroom -m /home/c/chenggan/gaussian-splatting/results/db/playroom/dgt_00020 --baseline 2
+
 
 
 # python render_multiModel.py -s /home/c/chenggan/datasets/db/playroom -m results/db/playroom/dgt_00020 --strategy distFov --render_image
