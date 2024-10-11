@@ -1,6 +1,6 @@
 import numpy as np
 import collections
-from plyfile import PlyData
+from plyfile import PlyData, PlyElement
 import itertools
 
 Image = collections.namedtuple(
@@ -115,6 +115,12 @@ def load_ply(path):
                     np.asarray(plydata.elements[0]["z"])), axis=1)
     return xyz
 
+def save_ply(path, points):
+    vertex = np.array([tuple(point) for point in points],
+                      dtype=[("x", "f4"), ("y", "f4"), ("z", "f4")])
+    el = PlyData([PlyElement.describe(vertex, "vertex")])
+    el.write(path)
+
 def calculate_density_threshold(density_list):
     """Calculate the density threshold based on the distribution of density."""
     density_list = np.array(density_list)
@@ -133,8 +139,9 @@ def get_margin(points):
     # get the 90% quantile of the distance between the points and the center
     center = np.mean(points, axis=0)
     dist = np.linalg.norm(points - center, axis=1)
-    points_90 = points[dist < np.quantile(dist, 0.9)]
-    margin = np.max(np.linalg.norm(points_90 - center, axis=1)) / 20
+    points_90 = points[dist < np.percentile(dist, 90)]
+    max_dist = np.max(np.linalg.norm(points_90 - center, axis=1))
+    margin = max_dist / 50
 
     return margin
 
@@ -149,8 +156,8 @@ def log_scale(value):
     return np.log(1 + value)
 
 
-def calculate_3D_line_score_v3(covered_points_ratio, rmse_list, density_list, length_list,
-                               w_points=1.0, w_density=1.0, w_RMSE=1.0, w_length=1.0, use_log_scale=True):
+def calculate_3D_line_score_v3(covered_points_ratio, rmse_list, length,
+                               w_points=1.0, w_RMSE=1.0, w_length=1.0, use_log_scale=True):
     """
     Calculate a score for a 3D line based on different factors, using z-score normalization or log scaling.
 
@@ -168,14 +175,10 @@ def calculate_3D_line_score_v3(covered_points_ratio, rmse_list, density_list, le
     Returns:
     - score: A single score representing the quality of the line.
     """
-    density = np.mean(density_list)
-    length = np.mean(length_list)
     # Apply normalization or log scaling to density and length
     if use_log_scale:
-        density_normalized = log_scale(density)
         length_normalized = log_scale(length)
     else:
-        density_normalized = density
         length_normalized = length
 
     # Apply sigmoid to RMSE to handle wide range of RMSE values
@@ -183,10 +186,7 @@ def calculate_3D_line_score_v3(covered_points_ratio, rmse_list, density_list, le
     RMSE_scaled = sigmoid(-RMSE)  # Smaller RMSE should give higher score, hence the negative sign
 
     # Calculate the score
-    score = (w_points * covered_points_ratio) + \
-            (w_density * density_normalized) - \
-            (w_RMSE * RMSE_scaled) - \
-            (w_length * length_normalized)
+    score = (w_points * covered_points_ratio) + (w_RMSE * 1 / (RMSE_scaled + 1)) + (w_length * 1 / (length_normalized + 1))
 
     return score
 

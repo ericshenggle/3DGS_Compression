@@ -10,7 +10,9 @@
 #
 import sys
 
+import numpy as np
 import torch
+
 try:
     import wandb
     WANDB_FOUND = True
@@ -116,9 +118,9 @@ def line3d_baseline3D(dataset: ModelParams, iteration: int, pipeline: PipelinePa
                                     "point_cloud.ply"))
 
     # downsample the 3D points
-    means3D = np.random.permutation(means3D)[:10000]
     margin = get_margin(means3D)
     print(f"Margin: {margin}")
+    sys.stdout.flush()
 
     line3d.evaluate3Dlines(dir_path, "before", means3D, margin=margin)
 
@@ -129,7 +131,7 @@ def line3d_baseline3D(dataset: ModelParams, iteration: int, pipeline: PipelinePa
     for i, line in enumerate(lines):
         coll = line.collinear3Dsegments()
         for j, s in enumerate(coll):
-            s.optimize_line(means3D, margin=margin, tls=True)
+            s.optimize_line(means3D, margin=margin, linearRegression=False)
             density, _ = s.calculate_density(means3D, margin=margin, recalculate=True)
             print(f"After optimizing line {i}, segment {j}, density: {density}")
             density_list.append(density)
@@ -168,11 +170,11 @@ def line3d_baseline3D(dataset: ModelParams, iteration: int, pipeline: PipelinePa
             s.calculate_rmse(means3D, margin=margin, recalculate=True)
     sys.stdout.flush()
 
-    # # represent the segment3D in the same 3D cluster
+    # represent the segment3D in the same 3D cluster
     line3d.cluster_3d_segments(means3D, margin=margin)
 
-    line3d.Write3DlinesToSTL(os.path.join(dir_path, "Line3D++_test"))
     line3d.evaluate3Dlines(dir_path, "after", means3D, margin=margin)
+    line3d.Write3DlinesToSTL(os.path.join(dir_path, "Line3D++_test"))
     pass
 
 

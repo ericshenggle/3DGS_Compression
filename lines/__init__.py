@@ -14,6 +14,7 @@ class Line3D:
         self.prefix_wng_ = "Warning: "
         self.lines3D_ = []
         self.file_name_ = ""
+        self.before_optimize_ = None
 
     def lines3D(self) -> List:
         return self.lines3D_
@@ -182,7 +183,6 @@ class Line3D:
         # Calculate the average RMSE and density of each 3D segment
         rmse_list = []
         points_idx_list = []
-        density_list = []
         length_list = []
         for i, line in enumerate(self.lines3D_):
             coll = line.collinear3Dsegments_
@@ -192,17 +192,18 @@ class Line3D:
                 if s.rmse() == -1:
                     continue
                 rmse_list.append(s.rmse() * 100) # scale RMSE from meters to centimeters
-                points_idx_list.append(s.filter_points_idx())
-                density_list.append(s.density())
+                if s.filter_points_idx() is not None and len(s.filter_points_idx()) > 0:
+                    points_idx_list.append(s.filter_points_idx())
                 length_list.append(s.length())
 
 
         # Calculate the average RMSE and density of all 3D segments
         avg_rmse = np.mean(rmse_list)
-        points_idx_list = np.unique(np.concatenate(points_idx_list))
-        avg_density = np.mean(density_list)
+        if len(points_idx_list) != 0:
+            points_idx_list = np.unique(np.concatenate(points_idx_list))
+        else:
+            points_idx_list = []
         total_length = np.sum(length_list)
-        avg_length = np.mean(length_list)
         # Calculate the value of 3D lines
         # A better 3D line should have a higher value
         # A better 3D line means that it covers more points and has a higher density
@@ -210,18 +211,28 @@ class Line3D:
         # A better 3D line should have a shorter length
         # The contribution of each factor to the value of 3D lines should be adjusted before applying this function
         covered_points_ratio = len(points_idx_list) / len(points)
-        score = calculate_3D_line_score_v3(covered_points_ratio, rmse_list, density_list, length_list,
-                                           w_points=2.0, w_density=0.5, w_RMSE=2.0, w_length=1.5,
+        length_ratio = total_length / np.log(len(points))
+        score = calculate_3D_line_score_v3(covered_points_ratio, rmse_list, length_ratio,
+                                           w_points=1.0, w_RMSE=1.0, w_length=1.0,
                                            use_log_scale=True)
+        if prefix == "before":
+            self.before_optimize_ = [avg_rmse, len(points_idx_list) / len(points), total_length, score]
 
         with open(os.path.join(path, f"3Dlines_evaluation.txt"), "w" if prefix == "before" else "a") as f:
             f.write(f"==================== {prefix} optimizing ====================\n")
             f.write(f"Average RMSE: {avg_rmse}\n")
             f.write(f"Points covered: {len(points_idx_list) / len(points) * 100}%\n")
-            f.write(f"Average Density: {avg_density}\n")
             f.write(f"Total Length: {total_length}\n")
-            f.write(f"Average Length: {avg_length}\n")
             f.write(f"Value of 3D lines: {score}\n")
-            f.write("==============================================================\n")
+            f.write("\n")
+            if prefix == "after" and self.before_optimize_ is not None:
+                rmse_improvement = (self.before_optimize_[0] - avg_rmse) / self.before_optimize_[0] * 100
+                points_improvement = (covered_points_ratio - self.before_optimize_[1]) / self.before_optimize_[1] * 100
+                length_improvement = (self.before_optimize_[2] - total_length) / self.before_optimize_[2] * 100
+                score_improvement = (score - self.before_optimize_[3]) / self.before_optimize_[3] * 100
+                f.write(f"RMSE improvement: {rmse_improvement}%\n")
+                f.write(f"Points covered improvement: {points_improvement}%\n")
+                f.write(f"Total Length improvement: {length_improvement}%\n")
+                f.write(f"Value of 3D lines improvement: {score_improvement}%\n")
 
         return

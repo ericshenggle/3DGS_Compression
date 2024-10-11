@@ -2,11 +2,12 @@
 
 #SBATCH --job-name=3dgs
 #SBATCH --time=120:00:00
-#SBATCH --partition=gpu-long
+#SBATCH --partition=long
 #SBATCH --mail-type=END,FAIL
 #SBATCH --mail-user=cyang_09@u.nus.edu
 
 # sbatch --gres=gpu:nv:1 -C cuda75 scripts.sh
+# sbatch -w xcnf27 scripts.sh
 
 #python train.py -s /home/c/chenggan/datasets/angularSphere1 -m /home/c/chenggan/gaussian-splatting/results/angularSphere1
 #python line3d.py -s /home/c/chenggan/datasets/angularSphere1 -m /home/c/chenggan/gaussian-splatting/results/angularSphere1 --baseline 2
@@ -15,7 +16,7 @@
 #python train.py -s /home/c/chenggan/datasets/angularSphere2_2 -m /home/c/chenggan/gaussian-splatting/results/angularSphere2_2
 #python line3d.py -s /home/c/chenggan/datasets/angularSphere2_2 -m /home/c/chenggan/gaussian-splatting/results/angularSphere2_2 --baseline 2
 #python train.py -s /home/c/chenggan/datasets/cube -m /home/c/chenggan/gaussian-splatting/results/cube
-#python line3d.py -s /home/c/chenggan/datasets/cube -m /home/c/chenggan/gaussian-splatting/results/cube --baseline 2
+python line3d.py -s /home/c/chenggan/datasets/cube -m /home/c/chenggan/gaussian-splatting/results/cube --baseline 2
 #python train.py -s /home/c/chenggan/datasets/simple1 -m /home/c/chenggan/gaussian-splatting/results/simple1
 #python line3d.py -s /home/c/chenggan/datasets/simple1 -m /home/c/chenggan/gaussian-splatting/results/simple1 --baseline 2
 #python train.py -s /home/c/chenggan/datasets/simple1_2 -m /home/c/chenggan/gaussian-splatting/results/simple1_2
@@ -30,7 +31,7 @@
 #python line3d.py -s /home/c/chenggan/datasets/simple3 -m /home/c/chenggan/gaussian-splatting/results/simple3 --baseline 2
 #python train.py -s /home/c/chenggan/datasets/simple4 -m /home/c/chenggan/gaussian-splatting/results/simple4
 #python line3d.py -s /home/c/chenggan/datasets/simple4 -m /home/c/chenggan/gaussian-splatting/results/simple4 --baseline 2
-python line3d.py -s /home/c/chenggan/datasets/db/playroom -m /home/c/chenggan/gaussian-splatting/results/db/playroom/dgt_00020 --baseline 2
+#python line3d.py -s /home/c/chenggan/datasets/db/playroom -m /home/c/chenggan/gaussian-splatting/results/db/playroom/dgt_00020 --baseline 2
 
 
 

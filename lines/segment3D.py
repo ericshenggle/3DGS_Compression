@@ -1,8 +1,8 @@
+from gettext import translation
 from typing import List
 import collections
 import numpy as np
-from torch.nn.init import normal
-from zipp import translate
+from sklearn.linear_model import LinearRegression
 
 Segment2D = collections.namedtuple(
     "Segment2D", ["camID", "segID", "coords"])
@@ -38,6 +38,9 @@ class Segment3D:
                 self.dir_ = np.array([0.0, 0.0, 0.0])
                 self.length_ = 0.0
                 self.valid_ = False
+
+    def project_point_to_line(self, P: np.ndarray) -> np.ndarray:
+        return P - self.P1_ - np.dot((P - self.P1_).T, self.dir_) * self.dir_
 
     def distance_point_to_line(self, P: np.ndarray) -> float:
         hlp_pt = self.P1_ + self.dir_ * np.dot((P - self.P1_).T, self.dir_)
@@ -95,7 +98,8 @@ class Segment3D:
         # Step 2: Filter points inside the cylindrical region
         filtered_points_idx = []
         filtered_points_dist = []
-        # TODO: Optimize the filtering process based on the 3DGS features, not just the distance
+        # TODO: Optimize the filtering process more efficiently, e.g., using KD-trees
+        # TODO: Also try to filter points based on the features that 3DGS points have
         for i, point in enumerate(points):
             # Project the point onto the line segment (cylinder axis)
             start_to_point = point - target_segment[0]
@@ -168,33 +172,34 @@ class Segment3D:
             self.P2_ -= learning_rate * grad_p
         return self.calculate_rmse(points, margin, optimize=True)
 
-    def tls_optimization(self, points, margin):
-        """Total least squares optimization of the segment endpoints."""
+    def lr_optimization(self, points, margin):
+        """Linear Regression optimization of the segment endpoints."""
         filtered_points_idx, _ = self.filter_points_within_segment_or_gap(points, margin, optimize=True)
         print(f"TLS Optimization: {len(filtered_points_idx)} points")
         if len(filtered_points_idx) != 0:
             points = points[filtered_points_idx]
-            # Step 1: Calculate the centroid of the points
-            centroid = np.mean(points, axis=0)
 
-            # Step 2: Perform PCA (Principal Component Analysis) to find the main direction
-            # Subtract the centroid from the points
-            points_centered = points - centroid
+            # Project points onto the line segment's orthogonal plane
+            points_centered = points - self.P1_
+            projections = points_centered - np.dot(points_centered, self.dir_)[:, None] * self.dir_
+            # Fit a linear regression model to the projected points
+            lr = LinearRegression()
+            lr.fit(np.ones((len(projections), 1)), projections)
+            translation = lr.intercept_
+            # print(f"Translation: {translation}")
+            # print(f"Old P1: {self.P1_}, Old P2: {self.P2_}")
+            self.P1_ += translation
+            self.P2_ += translation
+            # print(f"New P1: {self.P1_}, New P2: {self.P2_}")
 
-            _, _, Vt = np.linalg.svd(points_centered)
-            direction = Vt[0]  # The first principal component is the main direction
-
-            self.dir_ = direction
-            self.P1_ = centroid - direction * self.length_ / 2
-            self.P2_ = centroid + direction * self.length_ / 2
         return self.calculate_rmse(points, margin, optimize=True)
 
 
-    def optimize_line(self, points: List[np.ndarray], margin=1e-1, tls=False):
+    def optimize_line(self, points: List[np.ndarray], margin=1e-1, linearRegression=False):
         """Optimize the segment's endpoints to minimize the RMSE to a set of 3D points."""
-        if tls:
+        if linearRegression:
             # Use TLS to optimize the segment endpoints
-            return self.tls_optimization(points, margin)
+            return self.lr_optimization(points, margin)
         else:
             # Use gradient descent to optimize the segment endpoints
             return self.gradient_descent(points, margin, 1e-2, 5, 1e-3)
