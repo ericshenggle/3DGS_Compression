@@ -33,18 +33,19 @@ from utils.graphics_utils import fov2focal
 from scene.colmap_loader import rotmat2qvec
 from lines import Line3D
 from lines.utils import *
+from lines.octree import *
 
 
 def line3d_baseline2D(dataset: ModelParams, iteration: int, write_colmap=True, write_visualSFM=False):
     with torch.no_grad():
         gaussians = GaussianModel(dataset.sh_degree)
-        scene = Scene(dataset, gaussians, load_iteration=iteration)
+        scene = Scene(dataset, gaussians)
 
         means3D = gaussians.get_xyz
         pIDs = torch.arange(1, means3D.shape[0] + 1).unsqueeze(1).cuda()
         means3D_with_ids = torch.cat((means3D, pIDs), dim=1)
-        indices = torch.randperm(means3D_with_ids.shape[0])[:10000]
-        means3D_with_ids = means3D_with_ids[indices]
+        # indices = torch.randperm(means3D_with_ids.shape[0])[:10000]
+        # means3D_with_ids = means3D_with_ids[indices]
 
         views = scene.getTrainCameras()
 
@@ -108,35 +109,55 @@ def line3d_baseline2D(dataset: ModelParams, iteration: int, write_colmap=True, w
             write_nvm_file(cam_extrinsics, cam_intrinsics, means3D_with_ids, os.path.join(dir_path, "result.nvm"))
 
 
+def get_octree(means3D, max_depth, max_points):
+    bounds = np.array([[means3D[:, 0].min(), means3D[:, 1].min(), means3D[:, 2].min()],
+                       [means3D[:, 0].max(), means3D[:, 1].max(), means3D[:, 2].max()]])
+    octree = Octree(bounds, max_depth=max_depth, max_points=max_points)
+    for i in range(means3D.shape[0]):
+        octree.insert(means3D[i], i)
+    return octree
+
+
 def line3d_baseline3D(dataset: ModelParams, iteration: int, pipeline: PipelineParams, use_cuda: bool):
     dir_path = os.path.join(dataset.source_path, "colmap")
     line3d = Line3D()
     line3d.load3DLinesFromTXT(os.path.join(dir_path, "Line3D++"))
+    # lines
+    lines = line3d.lines3D()
     means3D = load_ply(os.path.join(dataset.model_path,
                                     "point_cloud",
                                     "iteration_" + str(iteration),
                                     "point_cloud.ply"))
 
     # downsample the 3D points
-    margin = get_margin(means3D)
+    margin = get_margin(means3D, fixed=False, fixed_margin=0.1, dist_ratio=0.02)
     print(f"Margin: {margin}")
     sys.stdout.flush()
 
+    # construct the octree
+    octree = get_octree(means3D, max_depth=8, max_points=10)
+    # octree.print_tree()
+    # save the points that each line3D contains
+    makedirs(os.path.join(dir_path, "octree"), exist_ok=True)
+    for i, line in enumerate(lines):
+        coll = line.collinear3Dsegments()
+        for j, s in enumerate(coll):
+            filter_points, _ = s.filter_points_within_segment_or_gap(octree, margin=margin)
+            save_ply(os.path.join(dir_path, "octree", f"Line{i}_segment{j}.ply"), filter_points)
+
     line3d.evaluate3Dlines(dir_path, "before", means3D, margin=margin)
 
-    # lines
-    lines = line3d.lines3D()
     # calculate the density of the all segment3D
     density_list = []
     for i, line in enumerate(lines):
         coll = line.collinear3Dsegments()
         for j, s in enumerate(coll):
-            s.optimize_line(means3D, margin=margin, linearRegression=False)
-            density, _ = s.calculate_density(means3D, margin=margin, recalculate=True)
-            print(f"After optimizing line {i}, segment {j}, density: {density}")
+            rmse = s.optimize_line(octree, margin=margin, linearRegression=True)
+            density, _ = s.calculate_density(octree, margin=margin, recalculate=True)
+            print(f"After optimizing line {i}, segment {j}, density: {density}, rmse: {rmse}")
             density_list.append(density)
         line.set_segments(coll)
-    density_threshold = calculate_density_threshold(density_list)
+    density_threshold = calculate_density_threshold(density_list, threshold_ratio=0.05)
     sys.stdout.flush()
 
     for i, line in enumerate(lines):
@@ -145,7 +166,7 @@ def line3d_baseline3D(dataset: ModelParams, iteration: int, pipeline: PipelinePa
         print(f"Start dropping Line {i}")
         tmp_coll = []
         for j, s in enumerate(coll):
-            density, _ = s.calculate_density(means3D, margin=margin)
+            density, _ = s.calculate_density(octree, margin=margin)
             if density < density_threshold:
                 print(f"Drop segment {j}, density: {density}")
                 continue
@@ -153,7 +174,7 @@ def line3d_baseline3D(dataset: ModelParams, iteration: int, pipeline: PipelinePa
         # merge the collinear segment3D if can
         if len(tmp_coll) > 1:
             print(f"Start merging Line {i}, segment3D count: {len(tmp_coll)}")
-            coll = merge_all_segments(coll, means3D, margin=margin)
+            coll = merge_all_segments(coll, octree, margin=margin)
             if len(coll) < len(tmp_coll):
                 print(f"New number segment3D of Line{i} is {len(coll)}")
         line.set_segments(tmp_coll)
@@ -165,13 +186,13 @@ def line3d_baseline3D(dataset: ModelParams, iteration: int, pipeline: PipelinePa
         print(f"Start cropping Line {i}")
         for j, s in enumerate(coll):
             print(f"Start cropping segment {j}, segment length: {s.length()}")
-            s.try_cropping(means3D, margin=margin)
-            s.calculate_density(means3D, margin=margin, recalculate=True)
-            s.calculate_rmse(means3D, margin=margin, recalculate=True)
+            s.try_cropping(octree, margin=margin)
+            s.calculate_density(octree, margin=margin, recalculate=True)
+            s.calculate_rmse(octree, margin=margin, recalculate=True)
     sys.stdout.flush()
 
     # represent the segment3D in the same 3D cluster
-    line3d.cluster_3d_segments(means3D, margin=margin)
+    line3d.cluster_3d_segments(octree, margin=margin, dist_threshold=margin)
 
     line3d.evaluate3Dlines(dir_path, "after", means3D, margin=margin)
     line3d.Write3DlinesToSTL(os.path.join(dir_path, "Line3D++_test"))

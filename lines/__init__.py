@@ -1,8 +1,5 @@
 import os
 import numpy as np
-from networkx.algorithms.bipartite.basic import density
-from sympy.physics.units import length
-from torch.utils.hipify.hipify_python import value
 
 from lines.segment3D import *
 from lines.clustering import *
@@ -149,14 +146,14 @@ class Line3D:
 
                 file.write("endsolid lineModel\n")
 
-    def cluster_3d_segments(self, points, margin=1e-1):
+    def cluster_3d_segments(self, octree, margin, dist_threshold=1e-1):
         segment_to_line = []
         segments = []
         for i, line in enumerate(self.lines3D_):
             for segment in line.collinear3Dsegments_:
                 segment_to_line.append(i)
                 segments.append(segment)
-        clusters = perform_clustering(segments, segment_to_line, dist_threshold=margin)
+        clusters = perform_clustering(segments, segment_to_line, dist_threshold=dist_threshold)
 
         self.lines3D_.clear()
         idx = 0
@@ -170,7 +167,7 @@ class Line3D:
             else:
                 for segID in v:
                     new_segments.append(segments[segID])
-                new_line = get_new_lines(new_segments, points, margin)
+                new_line = get_new_lines(new_segments, octree, margin)
             self.lines3D_.append(new_line)
 
         return
@@ -187,13 +184,14 @@ class Line3D:
         for i, line in enumerate(self.lines3D_):
             coll = line.collinear3Dsegments_
             for j, s in enumerate(coll):
-                s.calculate_density(points, margin=margin)
-                s.calculate_rmse(points, margin=margin)
-                if s.rmse() == -1:
+                rmse = s.eval_rmse(points, margin=margin)
+                if rmse == -1:
                     continue
-                rmse_list.append(s.rmse() * 100) # scale RMSE from meters to centimeters
-                if s.filter_points_idx() is not None and len(s.filter_points_idx()) > 0:
-                    points_idx_list.append(s.filter_points_idx())
+                filter_points_idx = s.eval_points(points, margin=margin)
+                if len(filter_points_idx) == 0:
+                    continue
+                rmse_list.append(rmse * 100) # scale RMSE from meters to centimeters
+                points_idx_list.append(filter_points_idx)
                 length_list.append(s.length())
 
 

@@ -81,7 +81,7 @@ def write_nvm_file(images, cameras, means3D, path):
 
 
 
-def merge_all_segments(segments, points, margin=1e-1):
+def merge_all_segments(segments, octree, margin):
     attempted_merges = set()
     while True:
         merged_any = False
@@ -91,7 +91,7 @@ def merge_all_segments(segments, points, margin=1e-1):
             if segment_pair_id in attempted_merges:
                 continue
 
-            merged_segment = segment1.try_segments_merge(segment2, points, margin=margin)
+            merged_segment = segment1.try_segments_merge(segment2, octree, margin)
 
             if merged_segment:
                 segments.remove(segment1)
@@ -121,7 +121,7 @@ def save_ply(path, points):
     el = PlyData([PlyElement.describe(vertex, "vertex")])
     el.write(path)
 
-def calculate_density_threshold(density_list):
+def calculate_density_threshold(density_list, threshold_ratio=0.2):
     """Calculate the density threshold based on the distribution of density."""
     density_list = np.array(density_list)
     # calculate the mean and standard deviation of the density
@@ -132,17 +132,18 @@ def calculate_density_threshold(density_list):
     density_threshold = mean_density * 0.2
     return density_threshold
 
-def get_margin(points):
+def get_margin(points, fixed=False, fixed_margin=1e-1, dist_ratio=0.02):
     """
     Calculate the margin based on the point cloud.
     """
+    if fixed:
+        return fixed_margin
     # get the 90% quantile of the distance between the points and the center
     center = np.mean(points, axis=0)
     dist = np.linalg.norm(points - center, axis=1)
     points_90 = points[dist < np.percentile(dist, 90)]
     max_dist = np.max(np.linalg.norm(points_90 - center, axis=1))
-    margin = max_dist / 50
-
+    margin = max_dist * dist_ratio
     return margin
 
 
