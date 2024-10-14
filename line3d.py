@@ -25,7 +25,7 @@ from tqdm import tqdm
 from os import makedirs
 from utils.general_utils import safe_state
 from argparse import ArgumentParser
-from arguments import ModelParams, PipelineParams, get_combined_args
+from arguments import ModelParams, PipelineParams, get_combined_args, SegmentParams
 from gaussian_renderer import GaussianModel
 
 from gaussian_renderer.strategy import transform_points_to_screen_space
@@ -44,8 +44,9 @@ def line3d_baseline2D(dataset: ModelParams, iteration: int, write_colmap=True, w
         means3D = gaussians.get_xyz
         pIDs = torch.arange(1, means3D.shape[0] + 1).unsqueeze(1).cuda()
         means3D_with_ids = torch.cat((means3D, pIDs), dim=1)
-        # indices = torch.randperm(means3D_with_ids.shape[0])[:10000]
-        # means3D_with_ids = means3D_with_ids[indices]
+        if means3D_with_ids.shape[0] > 20000:
+            indices = torch.randperm(means3D_with_ids.shape[0])[:20000]
+            means3D_with_ids = means3D_with_ids[indices]
 
         views = scene.getTrainCameras()
 
@@ -58,11 +59,11 @@ def line3d_baseline2D(dataset: ModelParams, iteration: int, write_colmap=True, w
             within_bounds_x = (screen_positions[:, 0] >= 0) & (screen_positions[:, 0] <= view.image_width - 1)
             within_bounds_y = (screen_positions[:, 1] >= 0) & (screen_positions[:, 1] <= view.image_height - 1)
             mask = (within_bounds_x & within_bounds_y)
-            original_count = means3D_with_ids.shape[0]
-
-            filtered_count = mask.sum().item()
-            print(f"before project: {original_count}")
-            print(f"after project: {filtered_count}")
+            # original_count = means3D_with_ids.shape[0]
+            #
+            # filtered_count = mask.sum().item()
+            # print(f"before project: {original_count}")
+            # print(f"after project: {filtered_count}")
 
             view_means3D = means3D_with_ids[mask].detach().cpu().numpy()
             screen_positions = screen_positions[mask].detach().cpu().numpy()
@@ -109,94 +110,92 @@ def line3d_baseline2D(dataset: ModelParams, iteration: int, write_colmap=True, w
             write_nvm_file(cam_extrinsics, cam_intrinsics, means3D_with_ids, os.path.join(dir_path, "result.nvm"))
 
 
-def get_octree(means3D, max_depth, max_points):
-    bounds = np.array([[means3D[:, 0].min(), means3D[:, 1].min(), means3D[:, 2].min()],
-                       [means3D[:, 0].max(), means3D[:, 1].max(), means3D[:, 2].max()]])
-    octree = Octree(bounds, max_depth=max_depth, max_points=max_points)
+def get_octree(means3D, line3d, args : SegmentParams):
+    bounds = line3d.get_bounds()
+    octree = Octree(bounds, max_depth=args.max_depth, max_points=args.max_points)
     for i in range(means3D.shape[0]):
         octree.insert(means3D[i], i)
     return octree
 
 
-def line3d_baseline3D(dataset: ModelParams, iteration: int, pipeline: PipelineParams, use_cuda: bool):
+def line3d_baseline3D(dataset : ModelParams, args : SegmentParams, iteration: int):
     dir_path = os.path.join(dataset.source_path, "colmap")
     line3d = Line3D()
     line3d.load3DLinesFromTXT(os.path.join(dir_path, "Line3D++"))
-    # lines
-    lines = line3d.lines3D()
     means3D = load_ply(os.path.join(dataset.model_path,
                                     "point_cloud",
                                     "iteration_" + str(iteration),
                                     "point_cloud.ply"))
 
     # downsample the 3D points
-    margin = get_margin(means3D, fixed=False, fixed_margin=0.1, dist_ratio=0.02)
-    print(f"Margin: {margin}")
+    preprocess_margin(means3D, args)
+    print(f"Margin: {args.margin}")
     sys.stdout.flush()
 
     # construct the octree
-    octree = get_octree(means3D, max_depth=8, max_points=10)
-    # octree.print_tree()
-    # save the points that each line3D contains
-    makedirs(os.path.join(dir_path, "octree"), exist_ok=True)
-    for i, line in enumerate(lines):
-        coll = line.collinear3Dsegments()
-        for j, s in enumerate(coll):
-            filter_points, _ = s.filter_points_within_segment_or_gap(octree, margin=margin)
-            save_ply(os.path.join(dir_path, "octree", f"Line{i}_segment{j}.ply"), filter_points)
+    octree = get_octree(means3D, line3d, args)
+    # octree.save_ply(os.path.join(dir_path, "octree.ply"))
+    # return
 
-    line3d.evaluate3Dlines(dir_path, "before", means3D, margin=margin)
+    # lines
+    lines = line3d.lines3D()
+
+    before_val = line3d.evaluate3Dlines(means3D, margin=args.eval_margin)
 
     # calculate the density of the all segment3D
     density_list = []
     for i, line in enumerate(lines):
         coll = line.collinear3Dsegments()
         for j, s in enumerate(coll):
-            rmse = s.optimize_line(octree, margin=margin, linearRegression=True)
-            density, _ = s.calculate_density(octree, margin=margin, recalculate=True)
-            print(f"After optimizing line {i}, segment {j}, density: {density}, rmse: {rmse}")
+            rmse = s.optimize_line(octree, args)
+            density, _ = s.calculate_density(octree, margin=args.margin, recalculate=True)
+            # print(f"After optimizing line {i}, segment {j}, density: {density}, rmse: {rmse}")
             density_list.append(density)
         line.set_segments(coll)
-    density_threshold = calculate_density_threshold(density_list, threshold_ratio=0.05)
+    density_threshold = calculate_density_threshold(density_list, args)
     sys.stdout.flush()
 
     for i, line in enumerate(lines):
         coll = line.collinear3Dsegments()
         # drop the segment3D if can
-        print(f"Start dropping Line {i}")
+        # print(f"Start dropping Line {i}")
         tmp_coll = []
         for j, s in enumerate(coll):
-            density, _ = s.calculate_density(octree, margin=margin)
+            density, _ = s.calculate_density(octree, margin=args.margin)
             if density < density_threshold:
-                print(f"Drop segment {j}, density: {density}")
+                # print(f"Drop segment {j}, density: {density}")
                 continue
             tmp_coll.append(s)
         # merge the collinear segment3D if can
         if len(tmp_coll) > 1:
-            print(f"Start merging Line {i}, segment3D count: {len(tmp_coll)}")
-            coll = merge_all_segments(coll, octree, margin=margin)
-            if len(coll) < len(tmp_coll):
-                print(f"New number segment3D of Line{i} is {len(coll)}")
+            # print(f"Start merging Line {i}, segment3D count: {len(tmp_coll)}")
+            coll = merge_all_segments(coll, octree, args, margin=args.margin)
+            # if len(coll) < len(tmp_coll):
+            #     print(f"New number segment3D of Line{i} is {len(coll)}")
         line.set_segments(tmp_coll)
     sys.stdout.flush()
 
     for i, line in enumerate(lines):
         coll = line.collinear3Dsegments()
         # cropping the segment3D if can
-        print(f"Start cropping Line {i}")
+        # print(f"Start cropping Line {i}")
         for j, s in enumerate(coll):
-            print(f"Start cropping segment {j}, segment length: {s.length()}")
-            s.try_cropping(octree, margin=margin)
-            s.calculate_density(octree, margin=margin, recalculate=True)
-            s.calculate_rmse(octree, margin=margin, recalculate=True)
+            # print(f"Start cropping segment {j}, segment length: {s.length()}")
+            s.try_cropping(octree, args)
+            s.calculate_density(octree, margin=args.margin, recalculate=True)
+            s.calculate_rmse(octree, margin=args.margin, recalculate=True)
     sys.stdout.flush()
 
     # represent the segment3D in the same 3D cluster
-    line3d.cluster_3d_segments(octree, margin=margin, dist_threshold=margin)
+    line3d.cluster_3d_segments(octree, args)
 
-    line3d.evaluate3Dlines(dir_path, "after", means3D, margin=margin)
+    # save the 3D lines
     line3d.Write3DlinesToSTL(os.path.join(dir_path, "Line3D++_test"))
-    pass
+
+    after_val = line3d.evaluate3Dlines(means3D, margin=args.eval_margin)
+
+    print(f"Before: {before_val}")
+    print(f"After: {after_val}")
 
 
 if __name__ == "__main__":
@@ -209,7 +208,7 @@ if __name__ == "__main__":
     # Set up command line argument parser
     parser = ArgumentParser(description="Getting 3D Lines for 3DGS")
     model = ModelParams(parser, sentinel=True)
-    pipeline = PipelineParams(parser)
+    seg = SegmentParams(parser)
     parser.add_argument("--iteration", default=30000, type=int)
     parser.add_argument("--quiet", action="store_true")
     parser.add_argument("--baseline", default=1, type=int)
@@ -229,7 +228,7 @@ if __name__ == "__main__":
         # apply the line3D++ cluster algorithm directly on 3DGS
         if WANDB_FOUND and args.wandb:
             wandb.init(project="3Dlines", dir=args.source_path, config=vars(args), name="line3D_" + args.model_path.split("/")[-1], group="baseline3D")
-        line3d_baseline3D(model.extract(args), args.iteration, pipeline.extract(args), args.use_cuda)
+        line3d_baseline3D(model.extract(args), seg.extract(args), args.iteration)
 
     # End time
     end_time = time.time()

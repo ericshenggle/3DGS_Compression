@@ -1,6 +1,8 @@
 from typing import List
 
 import numpy as np
+
+from arguments import SegmentParams
 from lines.segment3D import Segment3D
 
 
@@ -82,7 +84,7 @@ def calculate_weight(seg1, seg2, dist_threshold=0.1):
     return weight
 
 
-def perform_clustering(segments: List[Segment3D], index: List, dist_threshold=0.1, weight_threshold=0.5, c=1.5):
+def perform_clustering(segments: List[Segment3D], index: List, args : SegmentParams):
     """
     Perform clustering of 3D line segments based on proximity, parallelism, and length ratio.
 
@@ -104,10 +106,10 @@ def perform_clustering(segments: List[Segment3D], index: List, dist_threshold=0.
             if index[i] == index[j]:
                 continue
 
-            weight = calculate_weight(segments[i], segments[j], dist_threshold)
+            weight = calculate_weight(segments[i], segments[j], args.cluster_dist_threshold)
             # print(f"Weight between {i} and {j}: {weight}")
             # If weight is sufficiently large, consider it a valid edge
-            if weight >= weight_threshold:  # You can adjust this threshold as needed
+            if weight >= args.cluster_weight_threshold:  # You can adjust this threshold as needed
                 # print(f"Adding edge between {i} and {j}")
                 edges.append(CLEdge(i, j, weight))
 
@@ -118,6 +120,7 @@ def perform_clustering(segments: List[Segment3D], index: List, dist_threshold=0.
     universe = CLUniverse(num_nodes)
 
     # Step 4: Perform clustering based on edges
+    c = args.cluster_c
     threshold = [c] * num_nodes
     for edge in edges:
         a = universe.find(edge.i_)
@@ -143,7 +146,7 @@ def perform_clustering(segments: List[Segment3D], index: List, dist_threshold=0.
             weights = {}
             for i in range(len(cluster)):
                 for j in range(i + 1, len(cluster)):
-                    weight = calculate_weight(segments[cluster[i]], segments[cluster[j]], dist_threshold)
+                    weight = calculate_weight(segments[cluster[i]], segments[cluster[j]], args.cluster_dist_threshold)
                     weights[(i, j)] = weight
             # sort the weights
             sorted_weights = sorted(weights.items(), key=lambda x: x[1], reverse=True)

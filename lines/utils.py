@@ -3,6 +3,9 @@ import collections
 from plyfile import PlyData, PlyElement
 import itertools
 
+from arguments import SegmentParams
+from lines import Octree
+
 Image = collections.namedtuple(
     "Image", ["id", "qvec", "tvec", "camera_id", "name", "xys", "point3D_ids"])
 Camera = collections.namedtuple(
@@ -81,7 +84,7 @@ def write_nvm_file(images, cameras, means3D, path):
 
 
 
-def merge_all_segments(segments, octree, margin):
+def merge_all_segments(segments, octree : Octree, args : SegmentParams, margin):
     attempted_merges = set()
     while True:
         merged_any = False
@@ -91,7 +94,7 @@ def merge_all_segments(segments, octree, margin):
             if segment_pair_id in attempted_merges:
                 continue
 
-            merged_segment = segment1.try_segments_merge(segment2, octree, margin)
+            merged_segment = segment1.try_segments_merge(segment2, octree, args, margin)
 
             if merged_segment:
                 segments.remove(segment1)
@@ -121,7 +124,12 @@ def save_ply(path, points):
     el = PlyData([PlyElement.describe(vertex, "vertex")])
     el.write(path)
 
-def calculate_density_threshold(density_list, threshold_ratio=0.2):
+def save_ply_with_colors(path, points):
+    vertex = np.array([tuple(point) for point in points],
+                      dtype=[("x", "f4"), ("y", "f4"), ("z", "f4"), ])
+
+
+def calculate_density_threshold(density_list, args : SegmentParams):
     """Calculate the density threshold based on the distribution of density."""
     density_list = np.array(density_list)
     # calculate the mean and standard deviation of the density
@@ -129,22 +137,23 @@ def calculate_density_threshold(density_list, threshold_ratio=0.2):
     std_density = np.std(density_list)
     # calculate the density threshold
     # TODO: This threshold is a heuristic and may need to be adjusted
-    density_threshold = mean_density * 0.2
+    density_threshold = mean_density * args.den_threshold_ratio
     return density_threshold
 
-def get_margin(points, fixed=False, fixed_margin=1e-1, dist_ratio=0.02):
+def preprocess_margin(points, args : SegmentParams):
     """
     Calculate the margin based on the point cloud.
     """
-    if fixed:
-        return fixed_margin
+    if args.fixed:
+        return
     # get the 90% quantile of the distance between the points and the center
     center = np.mean(points, axis=0)
     dist = np.linalg.norm(points - center, axis=1)
-    points_90 = points[dist < np.percentile(dist, 90)]
+    points_90 = points[dist < np.percentile(dist, args.margin_percentile)]
     max_dist = np.max(np.linalg.norm(points_90 - center, axis=1))
-    margin = max_dist * dist_ratio
-    return margin
+    args.margin = max_dist * args.margin_dist_ratio
+    args.eval_margin = args.margin
+    args.cluster_dist_threshold = args.margin
 
 
 def sigmoid(value):

@@ -4,7 +4,8 @@ import collections
 import numpy as np
 from sklearn.linear_model import LinearRegression
 
-from lines.octree import Octree
+from arguments import SegmentParams
+from lines.octree import *
 
 Segment2D = collections.namedtuple(
     "Segment2D", ["camID", "segID", "coords"])
@@ -96,8 +97,9 @@ class Segment3D:
             sorted_candidates = [self.P1_, self.P2_]
             target_segment = sorted_candidates
         # TODO: Also try to filter points based on the features that 3DGS points have
-        filtered_points = octree.query(target_segment[0], target_segment[1], radius=margin)
-        filtered_points_idx = Segment3D(target_segment[0], target_segment[1]).eval_filter_point(filtered_points, margin=margin)
+        target = Segment3D(target_segment[0], target_segment[1])
+        filtered_points = octree.query(target, radius=margin)
+        filtered_points_idx = target.eval_filter_point(filtered_points, margin=margin)
         filtered_points = [filtered_points[i] for i in filtered_points_idx]
         filtered_points_dist = [self.distance_point_to_line(p) for p in filtered_points]
         filtered_points_dist = np.array(filtered_points_dist)
@@ -106,7 +108,7 @@ class Segment3D:
             sorted_idx = np.argsort(filtered_points_dist)
             filtered_points = [filtered_points[i] for i in sorted_idx[:int(len(sorted_idx) * 0.4)]]
         elif not is_gap:
-            self.filter_points_idx_ = octree.query_indices(target_segment[0], target_segment[1], radius=margin)
+            self.filter_points_idx_ = octree.query_indices(target, radius=margin)
             self.filter_points_idx_ = [self.filter_points_idx_[i] for i in filtered_points_idx]
             self.filter_points_ = filtered_points
             self.point_count_ = len(filtered_points)
@@ -152,7 +154,7 @@ class Segment3D:
         distances = [self.distance_point_to_line(p) for p in filtered_points]
         return np.sqrt(np.mean(np.square(distances)))
 
-    def compute_gradient(self, octree : Octree, margin, epsilon=1e-6):
+    def compute_gradient(self, octree : Octree, margin, epsilon):
         """Compute numerical gradient of the RMSE w.r.t. the segment's endpoints."""
         grad_p = np.zeros_like(self.P1_)
 
@@ -168,13 +170,13 @@ class Segment3D:
 
         return grad_p
 
-    def gradient_descent(self, octree : Octree, margin, learning_rate, max_iters, epsilon):
-        for i in range(max_iters):
-            grad_p = self.compute_gradient(octree, margin, epsilon)
+    def gradient_descent(self, octree : Octree, args : SegmentParams):
+        for i in range(args.gd_max_iters):
+            grad_p = self.compute_gradient(octree, args.margin, args.gd_epsilon)
             # print(f"Iteration {i}, RMSE: {self.rmse_}")
-            self.P1_ -= learning_rate * grad_p
-            self.P2_ -= learning_rate * grad_p
-        return self.calculate_rmse(octree, margin=margin, recalculate=True)
+            self.P1_ -= args.gd_learning_rate * grad_p
+            self.P2_ -= args.gd_learning_rate * grad_p
+        return self.calculate_rmse(octree, margin=args.margin, recalculate=True)
 
     def lr_optimization(self, octree : Octree, margin):
         """Linear Regression optimization of the segment endpoints."""
@@ -197,14 +199,14 @@ class Segment3D:
 
         return self.calculate_rmse(octree, margin=margin, recalculate=True)
 
-    def optimize_line(self, octree : Octree, margin, linearRegression=False):
+    def optimize_line(self, octree : Octree, args : SegmentParams):
         """Optimize the segment's endpoints to minimize the RMSE to a set of 3D points."""
-        if linearRegression:
+        if not args.gd_enable:
             # Use TLS to optimize the segment endpoints
-            return self.lr_optimization(octree, margin)
+            return self.lr_optimization(octree, args.margin)
         else:
             # Use gradient descent to optimize the segment endpoints
-            return self.gradient_descent(octree, margin, 1e-2, 5, 1e-3)
+            return self.gradient_descent(octree, args)
 
     def calculate_density(self, octree : Octree, margin, recalculate=False):
         """Calculate the density of points around the segment within a certain gap threshold."""
@@ -220,7 +222,7 @@ class Segment3D:
         filtered_points_idx = self.eval_filter_point(points, margin)
         return filtered_points_idx
 
-    def try_segments_merge(self, other, octree : Octree, margin):
+    def try_segments_merge(self, other, octree : Octree, args : SegmentParams, margin):
         """Try to merge two segments if they are collinear and have enough points in the gap."""
         # Step 1: Check if the two segments are collinear or nearly collinear
         dot_product = abs(np.dot(self.dir_, other.dir_))
@@ -237,15 +239,14 @@ class Segment3D:
         num_gap_points = len(filtered_gap_points)
         average_density = (density1 + density2) / 2
         expected_length = np.linalg.norm(sorted_points[1] - sorted_points[2])
-        point_threshold = int(average_density * expected_length)
         # Step 2: Merge segments if there are enough points in the gap
         # print(f"num_gap_points: {num_gap_points}, expected_length: {expected_length}, point_threshold: {point_threshold}")
-        if num_gap_points < point_threshold:
+        if num_gap_points < int(average_density * expected_length * args.try_merge_threshold):
             return None
 
         return Segment3D(sorted_points[0], sorted_points[-1])
 
-    def binary_search_crop(self, start, end, octree : Octree, margin, p1_flag=True, margin_length=0.02, balance_threshold=0.6):
+    def binary_search_crop(self, start, end, octree : Octree, args : SegmentParams, p1_flag=True):
         """
         Binary search to adjust the segment's endpoint for cropping based on point distribution across a plane.
         Parameters:
@@ -258,17 +259,16 @@ class Segment3D:
         - balance_threshold: The proportion difference threshold to determine if we should stop or continue cropping.
         """
         idx = 0
-        p1 = start
-        p2 = end
+        margin_length = self.length() * args.binary_crop_margin / 2
         while True:
             idx = idx + 1
             # Step 1: Compute the midpoint and create a new sub-segment
             midpoint = (start + end) / 2
-            if idx > 5:
+            if idx > 10 or np.linalg.norm(start - end) < 1e-4:
                 return midpoint
-            sub_segment = Segment3D(midpoint - self.dir_ * margin_length * 5,
-                                    midpoint + self.dir_ * margin_length * 5)
-            filter_points, _ = sub_segment.filter_points_within_segment_or_gap(octree, margin)
+            sub_segment = Segment3D(midpoint - self.dir_ * margin_length,
+                                    midpoint + self.dir_ * margin_length)
+            filter_points, _ = sub_segment.filter_points_within_segment_or_gap(octree, margin=args.margin)
             if len(filter_points) == 0:
                 # If there are no points, continue cropping
                 if p1_flag:
@@ -301,20 +301,20 @@ class Segment3D:
             proportion_diff = abs(positive_count - negative_count) / total_points
 
             # Step 5: If the proportion difference is large, continue cropping
-            if proportion_diff > balance_threshold:
+            if proportion_diff > args.binary_crop_threshold:
                 # If the difference is large, move towards the side with fewer points
                 if p1_flag:
                     start = midpoint  # Move the start point closer to the middle
                 else:
                     end = midpoint  # Move the end point closer to the middle
-            elif proportion_diff < balance_threshold:
+            elif proportion_diff < args.binary_crop_threshold:
                 # If the difference is small, move away to extend the segment
                 if p1_flag:
                     end = midpoint  # Move the start point closer to the middle
                 else:
                     start = midpoint  # Move the end point closer to the middle
 
-    def try_cropping(self, octree : Octree, margin, segment_ratio=0.02, density_threshold_ratio=0.5, balance_threshold=0.6):
+    def try_cropping(self, octree : Octree, args : SegmentParams):
         """
         Crop the segment using a binary search approach if the point density near the ends is much lower than in the middle.
         Parameters:
@@ -325,34 +325,34 @@ class Segment3D:
         - balance_threshold: The threshold for stopping the binary search.
         """
         # Step 1: Define the margin for the ends
-        segment_length = self.length()
-        margin_length = segment_length * segment_ratio
+        endpoint_margin_length = self.length() * args.cropping_endpoint_margin
+        middle_margin_length = self.length() * args.cropping_mid_margin / 2
         # Step 2: Calculate the density near the ends
-        p1_end_region = self.P1_ + self.dir_ * margin_length
-        p2_end_region = self.P2_ - self.dir_ * margin_length
+        p1_end_region = self.P1_ + self.dir_ * endpoint_margin_length
+        p2_end_region = self.P2_ - self.dir_ * endpoint_margin_length
         middle = (self.P1_ + self.P2_) / 2
-        middle_start = middle - self.dir_ * margin_length * 20
-        middle_end = middle + self.dir_ * margin_length * 20
+        middle_start = middle - self.dir_ * middle_margin_length
+        middle_end = middle + self.dir_ * middle_margin_length
         # Calculate densities
         p1_segment = Segment3D(self.P1_, p1_end_region)
-        p1_density, p1_count = p1_segment.calculate_density(octree, margin)
+        p1_density, p1_count = p1_segment.calculate_density(octree, margin=args.margin)
         # print(f"P1_density: {p1_density}")
         p2_segment = Segment3D(p2_end_region, self.P2_)
-        p2_density, p2_count = p2_segment.calculate_density(octree, margin)
+        p2_density, p2_count = p2_segment.calculate_density(octree, margin=args.margin)
         # print(f"P2_density: {p2_density}")
         # Step 3: Calculate the density in the middle region of the segment
         middle_segment = Segment3D(middle_start, middle_end)
-        middle_density, _ = middle_segment.calculate_density(octree, margin)
+        middle_density, _ = middle_segment.calculate_density(octree, margin=args.margin)
         # print(f"middle_density: {middle_density}")
         # Crop P1 side if needed
         is_cropping = False
         mid_point = (self.P1_ + self.P2_) / 2
-        if p1_density < middle_density * density_threshold_ratio:
-            self.P1_ = self.binary_search_crop(self.P1_, mid_point, octree, margin, True, margin_length, balance_threshold)
+        if p1_density < middle_density * args.cropping_den_threshold:
+            self.P1_ = self.binary_search_crop(self.P1_, mid_point, octree, args, True)
             is_cropping = True
         # Crop P2 side if needed
-        if p2_density < middle_density * density_threshold_ratio:
-            self.P2_ = self.binary_search_crop(mid_point, self.P2_, octree, margin, False, margin_length, balance_threshold)
+        if p2_density < middle_density * args.cropping_den_threshold:
+            self.P2_ = self.binary_search_crop(mid_point, self.P2_, octree, args, False)
             is_cropping = True
         # Update self
         self.length_ = np.linalg.norm(self.P1_ - self.P2_)
@@ -415,35 +415,37 @@ def segment_projection(seg1: Segment3D, seg2: Segment3D) -> bool:
     return False
 
 
-def join_segments(seg1: Segment3D, seg2: Segment3D, octree : Octree, margin):
+def join_segments(seg1: Segment3D, seg2: Segment3D, octree : Octree, args : SegmentParams):
     """Join two segments into a single segment if possible."""
     # Check if one endpoint of seg1 which is closer to any endpoint of seg2 is close enough to be joined with seg2
     endpoints = [seg1.P1(), seg1.P2(), seg2.P1(), seg2.P2()]
     endpoints = sorted(endpoints, key=lambda x: np.linalg.norm(x - seg1.P1()))
     gap_length = np.linalg.norm(endpoints[1] - endpoints[2])
-    if gap_length > seg1.length() * 0.5 or gap_length > seg2.length() * 0.5:
+    if gap_length > seg1.length() * args.join_length_threshold or gap_length > seg2.length() * args.join_length_threshold:
         # print("Gap is too large.")
         return None
-    new_seg = seg1.try_segments_merge(seg2, octree, margin)
+    new_seg = seg1.try_segments_merge(seg2, octree, args, margin=args.margin)
     if new_seg is not None:
         return new_seg
     return None
 
 
-def merge_segments(seg1: Segment3D, seg2: Segment3D, octree : Octree, margin, dist_threshold=0.1):
+def merge_segments(seg1: Segment3D, seg2: Segment3D, octree : Octree, args : SegmentParams):
     """Merge two segments into a single segment if possible."""
     short_seg = seg1 if seg1.length() < seg2.length() else seg2
     long_seg = seg1 if seg1.length() >= seg2.length() else seg2
-    short_seg.calculate_rmse(octree, margin)
-    long_seg.calculate_rmse(octree, margin)
+    short_seg.calculate_rmse(octree, margin=args.margin)
+    short_seg.calculate_density(octree, margin=args.margin)
+    long_seg.calculate_rmse(octree, margin=args.margin)
+    long_seg.calculate_density(octree, margin=args.margin)
     # Check if two segments are collinear or nearly collinear
     dot_product = abs(np.dot(short_seg.dir(), long_seg.dir()))
     if dot_product < np.cos(np.radians(20)):
         # print("Segments are not nearly collinear.")
         return None
     # Check if this two segments are close enough
-    if long_seg.distance_point_to_line(short_seg.P1()) > long_seg.length() * dist_threshold or \
-            long_seg.distance_point_to_line(short_seg.P2()) > long_seg.length() * dist_threshold:
+    if long_seg.distance_point_to_line(short_seg.P1()) > long_seg.length() * args.merge_dist_threshold or \
+            long_seg.distance_point_to_line(short_seg.P2()) > long_seg.length() * args.merge_dist_threshold:
         # print("Segments are not close enough.")
         return None
 
@@ -454,21 +456,23 @@ def merge_segments(seg1: Segment3D, seg2: Segment3D, octree : Octree, margin, di
     short_seg_p2_to_long_seg = long_seg.P1() + long_seg.dir() * np.dot(short_seg.P2() - long_seg.P1(), long_seg.dir()) - short_seg.P2()
     translate_dir = short_seg_p1_to_long_seg if np.linalg.norm(short_seg_p1_to_long_seg) < np.linalg.norm(short_seg_p2_to_long_seg) else short_seg_p2_to_long_seg
     new_short_seg = Segment3D(short_seg.P1() + translate_dir * (1 - proportion), short_seg.P2() + translate_dir * (1 - proportion))
-    new_short_seg.calculate_rmse(octree, margin)
+    new_short_seg.calculate_rmse(octree, margin=args.margin)
+    new_short_seg.calculate_density(octree, margin=args.margin)
     new_long_seg = Segment3D(long_seg.P1() - translate_dir * proportion, long_seg.P2() - translate_dir * proportion)
-    new_long_seg.calculate_rmse(octree, margin)
+    new_long_seg.calculate_rmse(octree, margin=args.margin)
+    new_long_seg.calculate_density(octree, margin=args.margin)
     # TODO: Check if the area between the segments is dense enough
-    if new_short_seg.rmse() > short_seg.rmse() and new_long_seg.rmse() > long_seg.rmse():
-        # print(f"The area between the segments is not dense enough.")
+    if new_short_seg.density() < short_seg.density() * args.merge_den_threshold or new_long_seg.density() < long_seg.density() * args.merge_den_threshold:
+        # print("Density is not high enough.")
         return None
 
     # return the segment if point_count is the highest among the five segments
     seg_list = [short_seg, long_seg, new_short_seg, new_long_seg]
-    seg_list = sorted(seg_list, key=lambda x: x.calculate_rmse(octree, margin) / x.length())
+    seg_list = sorted(seg_list, key=lambda x: x.calculate_rmse(octree, margin=args.margin) / x.length())
     return seg_list[0]
 
 
-def get_new_lines(new_segments: List[Segment3D], octree : Octree, margin) -> FinalLine3D:
+def get_new_lines(new_segments: List[Segment3D], octree : Octree, args) -> FinalLine3D:
     """Get the new lines from the segments and points."""
     # Create new lines from the new_segments list
     # Two types of creation:
@@ -492,13 +496,13 @@ def get_new_lines(new_segments: List[Segment3D], octree : Octree, margin) -> Fin
                 if segment_projection(new_segments[i], new_segments[j]):
                     # Try to merge two segments
                     # print(f"Try to merge two segments: {i} length={new_segments[i].length()}, {j} length={new_segments[j].length()}")
-                    new_line = merge_segments(new_segments[i], new_segments[j], octree, margin)
+                    new_line = merge_segments(new_segments[i], new_segments[j], octree, args)
                     # if new_line is not None:
                     #     print(f"Segments {i} and {j} are merged, new line length={new_line.length()}")
                 else:
                     # Try to join two segments
                     # print(f"Try to join two segments: {i} length={new_segments[i].length()}, {j} length={new_segments[j].length()}")
-                    new_line = join_segments(new_segments[i], new_segments[j], octree, margin)
+                    new_line = join_segments(new_segments[i], new_segments[j], octree, args)
                     # if new_line is not None:
                     #     print(f"Segments {i} and {j} are joined, new line length={new_line.length()}")
                 if new_line is not None:

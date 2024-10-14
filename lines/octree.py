@@ -1,4 +1,6 @@
 import numpy as np
+from scene.dataset_readers import storePly
+
 
 class OctreeNode:
     def __init__(self, bounds):
@@ -98,22 +100,23 @@ class Octree:
         if point[2] > z_mid: index += 4
         return index
 
-    def intersects(self, bounds, line_start, line_end, radius=None):
+    def intersects(self, bounds, segment3D, radius=None):
         """check if the line segment intersects with the bounding box"""
         # use AABB intersection test
-        return True
         if radius is None:
-            return self.aabb_intersects_line(bounds[0], bounds[1], line_start, line_end)
+            return self.aabb_intersects_line(bounds[0], bounds[1], segment3D)
         else:
-            return self.aabb_intersects_cylinder(bounds[0], bounds[1], line_start, line_end, radius)
+            return self.aabb_intersects_cylinder(bounds[0], bounds[1], segment3D, radius)
 
-    def aabb_intersects_line(self, min_bounds, max_bounds, line_start, line_end):
+    def aabb_intersects_line(self, min_bounds, max_bounds, segment3D):
         """simple AABB-line segment intersection test"""
         t_min = 0
         t_max = 1
+        line_start = segment3D.P1()
+        line_end = segment3D.P2()
 
         for i in range(3):
-            if np.fabs(line_end[i] - line_start[i]) < 1e-6:
+            if line_end[i] == line_start[i]:
                 if line_start[i] < min_bounds[i] or line_start[i] > max_bounds[i]:
                     return False
             else:
@@ -128,81 +131,64 @@ class Octree:
 
         return True
 
-    def aabb_intersects_cylinder(self, min_bounds, max_bounds, line_start, line_end, radius):
+    def aabb_intersects_cylinder(self, min_bounds, max_bounds, segment3D, radius):
         """AABB-cylinder intersection test with a fixed radius"""
-        # Step1: calculate the closest point on the AABB to the line segment
-        closest_point = self.closest_point_on_line_to_aabb(min_bounds, max_bounds, line_start, line_end)
-        distance_to_aabb = np.linalg.norm(closest_point - self.closest_point_on_aabb(closest_point, min_bounds, max_bounds))
+        # check if the line segment intersects with the AABB
+        if self.aabb_intersects_line(min_bounds, max_bounds, segment3D):
+            return True
+        # check if the AABB bounds are within the cylinder
+        points = [
+            np.array([min_bounds[0], min_bounds[1], min_bounds[2]]),
+            np.array([min_bounds[0], min_bounds[1], max_bounds[2]]),
+            np.array([min_bounds[0], max_bounds[1], min_bounds[2]]),
+            np.array([min_bounds[0], max_bounds[1], max_bounds[2]]),
+            np.array([max_bounds[0], min_bounds[1], min_bounds[2]]),
+            np.array([max_bounds[0], min_bounds[1], max_bounds[2]]),
+            np.array([max_bounds[0], max_bounds[1], min_bounds[2]]),
+            np.array([max_bounds[0], max_bounds[1], max_bounds[2]]),
+        ]
+        for point in points:
+            if segment3D.distance_point_to_line(point) <= 10 * radius:
+                return True
 
-        # Step2: check if the distance is less than the radius
-        return distance_to_aabb <= radius
+        return False
 
-    def closest_point_on_line_to_aabb(self, min_bounds, max_bounds, line_start, line_end):
-        """Find the closest point on the line segment to the AABB"""
-        line_direction = line_end - line_start
-        line_direction = line_direction / np.linalg.norm(line_direction)
 
-        t_min = 0
-        t_max = 1
-
-        for i in range(3):
-            if np.fabs(line_direction[i]) < 1e-6:
-                if line_start[i] < min_bounds[i] or line_start[i] > max_bounds[i]:
-                    return line_start
-            else:
-                t1 = (min_bounds[i] - line_start[i]) / line_direction[i]
-                t2 = (max_bounds[i] - line_start[i]) / line_direction[i]
-
-                t_min = max(t_min, min(t1, t2))
-                t_max = min(t_max, max(t1, t2))
-
-                if t_min > t_max:
-                    return line_start
-
-        return line_start + t_min * line_direction
-
-    def closest_point_on_aabb(self, point, min_bounds, max_bounds):
-        """Find the closest point on the AABB to the given point"""
-        closest_point = np.zeros(3)
-        for i in range(3):
-            closest_point[i] = max(min_bounds[i], min(point[i], max_bounds[i]))
-        return closest_point
-
-    def query(self, line_start, line_end, radius=None):
+    def query(self, segment3D, radius=None):
         """Query the points that intersect with the line segment"""
         found_points = []
-        self._query_recursive(self.root, line_start, line_end, found_points, radius)
+        self._query_recursive(self.root, segment3D, found_points, radius)
         return found_points
 
-    def _query_recursive(self, node, line_start, line_end, found_points, radius):
+    def _query_recursive(self, node, segment3D, found_points, radius):
         """recursively query the points that intersect with the line segment"""
         if not node:
             return
 
-        if self.intersects(node.bounds, line_start, line_end, radius):
+        if self.intersects(node.bounds, segment3D, radius):
             if node.is_leaf():
                 found_points.extend(node.points)
             else:
                 for child in node.children:
-                    self._query_recursive(child, line_start, line_end, found_points, radius)
+                    self._query_recursive(child, segment3D, found_points, radius)
 
-    def query_indices(self, line_start, line_end, radius=None):
+    def query_indices(self, segment3D, radius=None):
         """Query the indices of the points that intersect with the line segment"""
         found_indices = []
-        self._query_indices_recursive(self.root, line_start, line_end, found_indices, radius)
+        self._query_indices_recursive(self.root, segment3D, found_indices, radius)
         return found_indices
 
-    def _query_indices_recursive(self, node, line_start, line_end, found_indices, radius):
+    def _query_indices_recursive(self, node, segment3D, found_indices, radius):
         """recursively query the indices of the points that intersect with the line segment"""
         if not node:
             return
 
-        if self.intersects(node.bounds, line_start, line_end, radius):
+        if self.intersects(node.bounds, segment3D, radius):
             if node.is_leaf():
                 found_indices.extend(node.points_idx)
             else:
                 for child in node.children:
-                    self._query_indices_recursive(child, line_start, line_end, found_indices, radius)
+                    self._query_indices_recursive(child, segment3D, found_indices, radius)
 
     def print_tree(self):
         """Print the tree structure"""
@@ -216,6 +202,30 @@ class Octree:
         print("  " * depth + f"Depth: {depth}, Num points: {len(node.points)}")
         for child in node.children:
             self._print_tree_recursive(child, depth + 1)
+
+    def save_ply(self, path):
+        """Save the points in the Octree to a PLY file"""
+        points = []
+        colors = []
+        self._save_ply_recursive(self.root, points, colors)
+        points = np.array(points)
+        colors = np.array(colors)
+        storePly(path, points, colors)
+
+    def _save_ply_recursive(self, node, points, colors):
+        """recursively save the points in the Octree to a list"""
+        if not node:
+            return
+
+        # add the points in the leaf node with different colors
+        if node.is_leaf():
+            color = np.random.randint(0, 255, 3)
+            for point in node.points:
+                points.append(point)
+                colors.append(color)
+        else:
+            for child in node.children:
+                self._save_ply_recursive(child, points, colors)
 
 
 

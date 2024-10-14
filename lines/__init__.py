@@ -146,20 +146,20 @@ class Line3D:
 
                 file.write("endsolid lineModel\n")
 
-    def cluster_3d_segments(self, octree, margin, dist_threshold=1e-1):
+    def cluster_3d_segments(self, octree, args):
         segment_to_line = []
         segments = []
         for i, line in enumerate(self.lines3D_):
             for segment in line.collinear3Dsegments_:
                 segment_to_line.append(i)
                 segments.append(segment)
-        clusters = perform_clustering(segments, segment_to_line, dist_threshold=dist_threshold)
+        clusters = perform_clustering(segments, segment_to_line, args)
 
         self.lines3D_.clear()
         idx = 0
         for k, v in clusters.items():
             idx += 1
-            print(f"Cluster {idx}: root={k}, size={len(v)}, segments={v}")
+            # print(f"Cluster {idx}: root={k}, size={len(v)}, segments={v}")
             new_segments = []
             if len(v) == 1:
                 new_line = FinalLine3D()
@@ -167,12 +167,12 @@ class Line3D:
             else:
                 for segID in v:
                     new_segments.append(segments[segID])
-                new_line = get_new_lines(new_segments, octree, margin)
+                new_line = get_new_lines(new_segments, octree, args)
             self.lines3D_.append(new_line)
 
         return
 
-    def evaluate3Dlines(self, path, prefix, points, margin=1e-1):
+    def evaluate3Dlines(self, points, margin=1e-1):
         if len(self.lines3D_) == 0:
             print(self.prefix_wng_, "no 3D lines to evaluate!")
             return
@@ -213,24 +213,19 @@ class Line3D:
         score = calculate_3D_line_score_v3(covered_points_ratio, rmse_list, length_ratio,
                                            w_points=1.0, w_RMSE=1.0, w_length=1.0,
                                            use_log_scale=True)
-        if prefix == "before":
-            self.before_optimize_ = [avg_rmse, len(points_idx_list) / len(points), total_length, score]
+        return [avg_rmse, len(points_idx_list) / len(points), total_length, score]
 
-        with open(os.path.join(path, f"3Dlines_evaluation.txt"), "w" if prefix == "before" else "a") as f:
-            f.write(f"==================== {prefix} optimizing ====================\n")
-            f.write(f"Average RMSE: {avg_rmse}\n")
-            f.write(f"Points covered: {len(points_idx_list) / len(points) * 100}%\n")
-            f.write(f"Total Length: {total_length}\n")
-            f.write(f"Value of 3D lines: {score}\n")
-            f.write("\n")
-            if prefix == "after" and self.before_optimize_ is not None:
-                rmse_improvement = (self.before_optimize_[0] - avg_rmse) / self.before_optimize_[0] * 100
-                points_improvement = (covered_points_ratio - self.before_optimize_[1]) / self.before_optimize_[1] * 100
-                length_improvement = (self.before_optimize_[2] - total_length) / self.before_optimize_[2] * 100
-                score_improvement = (score - self.before_optimize_[3]) / self.before_optimize_[3] * 100
-                f.write(f"RMSE improvement: {rmse_improvement}%\n")
-                f.write(f"Points covered improvement: {points_improvement}%\n")
-                f.write(f"Total Length improvement: {length_improvement}%\n")
-                f.write(f"Value of 3D lines improvement: {score_improvement}%\n")
-
-        return
+    def get_bounds(self):
+        endpoints = []
+        for line in self.lines3D_:
+            for segment in line.collinear3Dsegments_:
+                endpoints.append(segment.P1())
+                endpoints.append(segment.P2())
+        endpoints = np.array(endpoints)
+        original_bound = [[endpoints[:, 0].min(), endpoints[:, 1].min(), endpoints[:, 2].min()],
+                [endpoints[:, 0].max(), endpoints[:, 1].max(), endpoints[:, 2].max()]]
+        # add bias to the bounds based on the original bounds
+        longest_edge = np.max(np.array(original_bound[1]) - np.array(original_bound[0]))
+        bias = longest_edge * 0.1
+        return [[original_bound[0][0] - bias, original_bound[0][1] - bias, original_bound[0][2] - bias],
+                [original_bound[1][0] + bias, original_bound[1][1] + bias, original_bound[1][2] + bias]]

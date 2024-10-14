@@ -93,6 +93,43 @@ class OptimizationParams(ParamGroup):
         self.random_background = False
         super().__init__(parser, "Optimization Parameters")
 
+class SegmentParams(ParamGroup):
+    def __init__(self, parser):
+        # filtering parameters
+        self.den_threshold_ratio = 0.2
+        self.opti_filter_percentile = 0.4
+        # gradient descent parameters
+        self.gd_enable = False
+        self.gd_epsilon = 1e-3
+        self.gd_learning_rate = 1e-2
+        self.gd_max_iters = 5
+        # merge parameters
+        self.try_merge_threshold = 1
+        # cropping parameters
+        self.cropping_endpoint_margin = 0.02
+        self.cropping_mid_margin = 0.8
+        self.cropping_den_threshold = 0.5
+        self.binary_crop_margin = 0.2
+        self.binary_crop_threshold = 0.6
+        # clustering parameters
+        self.join_length_threshold = 0.5
+        self.merge_dist_threshold = 0.1
+        self.merge_den_threshold = 0.6
+        self.cluster_dist_threshold = 0.1
+        self.cluster_weight_threshold = 0.5
+        self.cluster_c = 1.5
+        # margin parameters
+        self.fixed = False
+        self.margin = 0.1
+        self.margin_percentile = 95
+        self.margin_dist_ratio = 0.02
+        # octree parameters
+        self.max_depth = 10
+        self.max_points = 10
+        # evaluation parameters
+        self.eval_margin = 0.1
+        super().__init__(parser, "Line3D Parameters")
+
 def get_combined_args(parser : ArgumentParser):
     cmdlne_string = sys.argv[1:]
     cfgfile_string = "Namespace()"
