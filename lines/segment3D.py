@@ -139,8 +139,8 @@ class Segment3D:
 
         filtered_points, _ = self.filter_points_within_segment_or_gap(octree, margin)
         if len(filtered_points) == 0:
-            self.rmse_ = -1
-            return -1
+            self.rmse_ = np.inf
+            return self.rmse_
         distances = [self.distance_point_to_line(p) for p in filtered_points]
         self.rmse_ = np.sqrt(np.mean(np.square(distances)))
         return self.rmse_
@@ -421,7 +421,7 @@ def join_segments(seg1: Segment3D, seg2: Segment3D, octree : Octree, args : Segm
     endpoints = [seg1.P1(), seg1.P2(), seg2.P1(), seg2.P2()]
     endpoints = sorted(endpoints, key=lambda x: np.linalg.norm(x - seg1.P1()))
     gap_length = np.linalg.norm(endpoints[1] - endpoints[2])
-    if gap_length > seg1.length() * args.join_length_threshold or gap_length > seg2.length() * args.join_length_threshold:
+    if gap_length > seg1.length() * args.join_length_threshold and gap_length > seg2.length() * args.join_length_threshold:
         # print("Gap is too large.")
         return None
     new_seg = seg1.try_segments_merge(seg2, octree, args, margin=args.margin)
@@ -468,7 +468,7 @@ def merge_segments(seg1: Segment3D, seg2: Segment3D, octree : Octree, args : Seg
 
     # return the segment if point_count is the highest among the five segments
     seg_list = [short_seg, long_seg, new_short_seg, new_long_seg]
-    seg_list = sorted(seg_list, key=lambda x: x.calculate_rmse(octree, margin=args.margin) / x.length())
+    seg_list = sorted(seg_list, key=lambda x: x.calculate_rmse(octree, margin=args.margin) / x.point_count() if x.point_count() > 0 else np.inf)
     return seg_list[0]
 
 

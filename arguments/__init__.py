@@ -97,8 +97,8 @@ class SegmentParams(ParamGroup):
     def __init__(self, parser):
         # filtering parameters
         self.den_threshold_ratio = 0.2
-        self.opti_filter_percentile = 0.4
         # gradient descent parameters
+        self.opti_filter_percentile = 0.4
         self.gd_enable = False
         self.gd_epsilon = 1e-3
         self.gd_learning_rate = 1e-2
@@ -112,15 +112,14 @@ class SegmentParams(ParamGroup):
         self.binary_crop_margin = 0.2
         self.binary_crop_threshold = 0.6
         # clustering parameters
-        self.join_length_threshold = 0.5
+        self.join_length_threshold = 0.3
         self.merge_dist_threshold = 0.1
         self.merge_den_threshold = 0.6
         self.cluster_dist_threshold = 0.1
         self.cluster_weight_threshold = 0.5
         self.cluster_c = 1.5
         # margin parameters
-        self.fixed = False
-        self.margin = 0.1
+        self.margin = None
         self.margin_percentile = 95
         self.margin_dist_ratio = 0.02
         # octree parameters

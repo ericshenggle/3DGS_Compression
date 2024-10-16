@@ -144,30 +144,20 @@ def preprocess_margin(points, args : SegmentParams):
     """
     Calculate the margin based on the point cloud.
     """
-    if args.fixed:
-        return
     # get the 90% quantile of the distance between the points and the center
+    if args.margin is not None:
+        args.cluster_dist_threshold = args.margin
+        return
     center = np.mean(points, axis=0)
     dist = np.linalg.norm(points - center, axis=1)
     points_90 = points[dist < np.percentile(dist, args.margin_percentile)]
     max_dist = np.max(np.linalg.norm(points_90 - center, axis=1))
     args.margin = max_dist * args.margin_dist_ratio
-    args.eval_margin = args.margin
     args.cluster_dist_threshold = args.margin
 
 
-def sigmoid(value):
-    """Apply sigmoid function to compress large values to [0, 1]."""
-    return 1 / (1 + np.exp(-value))
-
-
-def log_scale(value):
-    """Apply log scaling to compress large values."""
-    return np.log(1 + value)
-
-
 def calculate_3D_line_score_v3(covered_points_ratio, rmse_list, length,
-                               w_points=1.0, w_RMSE=1.0, w_length=1.0, use_log_scale=True):
+                               w_points=1.0, w_RMSE=1.0, w_length=1.0):
     """
     Calculate a score for a 3D line based on different factors, using z-score normalization or log scaling.
 
@@ -185,18 +175,16 @@ def calculate_3D_line_score_v3(covered_points_ratio, rmse_list, length,
     Returns:
     - score: A single score representing the quality of the line.
     """
-    # Apply normalization or log scaling to density and length
-    if use_log_scale:
-        length_normalized = log_scale(length)
-    else:
-        length_normalized = length
-
-    # Apply sigmoid to RMSE to handle wide range of RMSE values
-    RMSE = np.mean(rmse_list)
-    RMSE_scaled = sigmoid(-RMSE)  # Smaller RMSE should give higher score, hence the negative sign
+    RMSE_scaled = np.mean(rmse_list)
+    # Apply normalization to length and RMSE
+    # length range is [0, +inf), scale to [0, 1], longer is worse, so need to inverse
+    length_normalized = 1 / np.log(1 + length)
+    # larger RMSE is worse, so need to inverse
+    RMSE_scaled = 1 / np.log(1 + RMSE_scaled)
+    covered_points_ratio_scale = np.log(1 + covered_points_ratio)
 
     # Calculate the score
-    score = (w_points * covered_points_ratio) + (w_RMSE * 1 / (RMSE_scaled + 1)) + (w_length * 1 / (length_normalized + 1))
+    score = (w_points * covered_points_ratio_scale) + (w_RMSE * RMSE_scaled) + (w_length * length_normalized)
 
     return score
 

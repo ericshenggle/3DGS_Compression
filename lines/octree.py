@@ -148,7 +148,7 @@ class Octree:
             np.array([max_bounds[0], max_bounds[1], max_bounds[2]]),
         ]
         for point in points:
-            if segment3D.distance_point_to_line(point) <= 10 * radius:
+            if segment3D.distance_point_to_line(point) <= 2 * radius:
                 return True
 
         return False

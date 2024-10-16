@@ -172,7 +172,7 @@ class Line3D:
 
         return
 
-    def evaluate3Dlines(self, points, margin=1e-1):
+    def evaluate3Dlines(self, path, prefix, points, margin=1e-1):
         if len(self.lines3D_) == 0:
             print(self.prefix_wng_, "no 3D lines to evaluate!")
             return
@@ -211,8 +211,27 @@ class Line3D:
         covered_points_ratio = len(points_idx_list) / len(points)
         length_ratio = total_length / np.log(len(points))
         score = calculate_3D_line_score_v3(covered_points_ratio, rmse_list, length_ratio,
-                                           w_points=1.0, w_RMSE=1.0, w_length=1.0,
-                                           use_log_scale=True)
+                                           w_points=1.0, w_RMSE=1.0, w_length=1.0)
+        if prefix == "before":
+            self.before_optimize_ = [avg_rmse, len(points_idx_list) / len(points), total_length, score]
+
+        with open(os.path.join(path, f"3Dlines_evaluation.txt"), "w" if prefix == "before" else "a") as f:
+            f.write(f"==================== {prefix} optimizing ====================\n")
+            f.write(f"Average RMSE: {avg_rmse}\n")
+            f.write(f"Points covered: {len(points_idx_list) / len(points) * 100}%\n")
+            f.write(f"Total Length: {total_length}\n")
+            f.write(f"Value of 3D lines: {score}\n")
+            f.write("\n")
+            if prefix == "after" and self.before_optimize_ is not None:
+                rmse_improvement = (self.before_optimize_[0] - avg_rmse) / self.before_optimize_[0] * 100
+                points_improvement = (covered_points_ratio - self.before_optimize_[1]) / self.before_optimize_[1] * 100
+                length_improvement = (self.before_optimize_[2] - total_length) / self.before_optimize_[2] * 100
+                score_improvement = (score - self.before_optimize_[3]) / self.before_optimize_[3] * 100
+                f.write(f"RMSE improvement: {rmse_improvement:.3f}%\n")
+                f.write(f"Points covered improvement: {points_improvement:.3f}%\n")
+                f.write(f"Total Length improvement: {length_improvement:.3f}%\n")
+                f.write(f"Value of 3D lines improvement: {score_improvement:.3f}%\n")
+
         return [avg_rmse, len(points_idx_list) / len(points), total_length, score]
 
     def get_bounds(self):
