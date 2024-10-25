@@ -3,6 +3,7 @@ from typing import List
 import numpy as np
 
 from arguments import SegmentParams
+from lines import segment_projection
 from lines.segment3D import Segment3D
 
 
@@ -42,7 +43,18 @@ def line_segment_distance(longer_seg, smaller_seg):
     """
     Calculate the minimum distance between two 3D line segments.
     """
-    return min(longer_seg.distance_point_to_line(smaller_seg.P1()), longer_seg.distance_point_to_line(smaller_seg.P2()))
+    if segment_projection(longer_seg, smaller_seg):
+        return min(longer_seg.distance_point_to_line(smaller_seg.P1()), longer_seg.distance_point_to_line(smaller_seg.P2()))
+    else:
+        longer_seg_P1 = longer_seg.P1()
+        longer_seg_P2 = longer_seg.P2()
+        smaller_seg_P1 = smaller_seg.P1()
+        smaller_seg_P2 = smaller_seg.P2()
+        smaller_seg_P1_proj_to_longer_P1 = np.linalg.norm(longer_seg.project_point_to_line(smaller_seg_P1) - longer_seg_P1)
+        smaller_seg_P1_proj_to_longer_P2 = np.linalg.norm(longer_seg.project_point_to_line(smaller_seg_P1) - longer_seg_P2)
+        smaller_seg_P2_proj_to_longer_P1 = np.linalg.norm(longer_seg.project_point_to_line(smaller_seg_P2) - longer_seg_P1)
+        smaller_seg_P2_proj_to_longer_P2 = np.linalg.norm(longer_seg.project_point_to_line(smaller_seg_P2) - longer_seg_P2)
+        return min(smaller_seg_P1_proj_to_longer_P1, smaller_seg_P1_proj_to_longer_P2, smaller_seg_P2_proj_to_longer_P1, smaller_seg_P2_proj_to_longer_P2)
 
 
 def calculate_weight(seg1, seg2, dist_threshold=0.1):
@@ -60,9 +72,7 @@ def calculate_weight(seg1, seg2, dist_threshold=0.1):
     smaller_seg = seg1 if seg1.length() <= seg2.length() else seg2
     # 1. Distance weight
     dist = line_segment_distance(longer_seg, smaller_seg)
-    distance_threshold = dist_threshold * longer_seg.length()
-    distance_threshold = distance_threshold if distance_threshold > dist_threshold else dist_threshold
-    dist_w = 1 / (1 + 2 * (dist / distance_threshold) ** 2)  # Quadratic decay based on distance
+    dist_w = 1 / (1 + 2 * (dist / dist_threshold) ** 2)  # Quadratic decay based on distance
     # print(f"Distance : {dist} Distance weight : {dist_w}")
 
     # 2. Angle weight
@@ -91,7 +101,6 @@ def perform_clustering(segments: List[Segment3D], index: List, args : SegmentPar
     Parameters:
     - segments: List of Segment3D objects.
     - index: the index of the line that segments belong to.
-    - dist_threshold: Maximum allowed distance between two line segments.
     - c: Clustering constant to adjust merging behavior.
 
     Returns:

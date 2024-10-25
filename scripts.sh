@@ -9,21 +9,17 @@
 # sbatch --gres=gpu:nv:1 -C cuda75 scripts.sh
 # sbatch -w xcnf27 scripts.sh
 
+python convert.py -s /home/c/chenggan/datasets/castle_dense_large
+python convert.py -s /home/c/chenggan/datasets/herzjesu_dense_large
+python train.py -s /home/c/chenggan/datasets/castle_dense_large -m /home/c/chenggan/gaussian-splatting/results/castle_dense_large
+python train.py -s /home/c/chenggan/datasets/herzjesu_dense_large -m /home/c/chenggan/gaussian-splatting/results/herzjesu_dense_large
+python line3d.py -s /home/c/chenggan/datasets/castle_dense_large -m /home/c/chenggan/gaussian-splatting/results/castle_dense_large
+python line3d.py -s /home/c/chenggan/datasets/herzjesu_dense_large -m /home/c/chenggan/gaussian-splatting/results/herzjesu_dense_large
 
-#python train.py -s /home/c/chenggan/datasets/db/playroom -m /home/c/chenggan/gaussian-splatting/results/db/playroom/
-#python line3d.py -s /home/c/chenggan/datasets/db/playroom -m /home/c/chenggan/gaussian-splatting/results/db/playroom/ --baseline 1
-#python train.py -s /home/c/chenggan/datasets/db/drjohnson -m /home/c/chenggan/gaussian-splatting/results/db/drjohnson/
-#python line3d.py -s /home/c/chenggan/datasets/db/drjohnson -m /home/c/chenggan/gaussian-splatting/results/db/drjohnson/ --baseline 1
-#python train.py -s /home/c/chenggan/datasets/tandt/train -m /home/c/chenggan/gaussian-splatting/results/tandt/train/
-#python line3d.py -s /home/c/chenggan/datasets/tandt/train -m /home/c/chenggan/gaussian-splatting/results/tandt/train/ --baseline 1
-#python train.py -s /home/c/chenggan/datasets/tandt/truck -m /home/c/chenggan/gaussian-splatting/results/tandt/truck/
-#python line3d.py -s /home/c/chenggan/datasets/tandt/truck -m /home/c/chenggan/gaussian-splatting/results/tandt/truck/ --baseline 1
-
-python line3d.py -s /home/c/chenggan/datasets/ABC-NEF/ -m /home/c/chenggan/gaussian-splatting/results/ABC-NEF/ --baseline 3
+#python line3d.py -s /home/c/chenggan/datasets/ABC-NEF/ -m /home/c/chenggan/gaussian-splatting/results/ABC-NEF/ --baseline 3
+#python line3d.py -s /home/c/chenggan/datasets/ABC-NEF/00009741 -m /home/c/chenggan/gaussian-splatting/results/ABC-NEF/00009741 --baseline 2
 
 #python line3d.py -s /home/c/chenggan/datasets/myBlender/simple1 -m /home/c/chenggan/gaussian-splatting/results/myBlender/simple1 --baseline 2
-#python line3d.py -s /home/c/chenggan/datasets/myBlender/simple1_3 -m /home/c/chenggan/gaussian-splatting/results/myBlender/simple1_3 --baseline 2
-#python line3d.py -s /home/c/chenggan/datasets/myBlender/simple1_4 -m /home/c/chenggan/gaussian-splatting/results/myBlender/simple1_4 --baseline 2
 #python line3d.py -s /home/c/chenggan/datasets/myBlender/simple2 -m /home/c/chenggan/gaussian-splatting/results/myBlender/simple2 --baseline 2
 #python line3d.py -s /home/c/chenggan/datasets/db/playroom -m /home/c/chenggan/gaussian-splatting/results/db/playroom/ --baseline 2
 #python line3d.py -s /home/c/chenggan/datasets/db/drjohnson -m /home/c/chenggan/gaussian-splatting/results/db/drjohnson/ --baseline 2

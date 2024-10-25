@@ -107,19 +107,21 @@ class SegmentParams(ParamGroup):
         self.try_merge_threshold = 1
         # cropping parameters
         self.cropping_endpoint_margin = 0.02
-        self.cropping_mid_margin = 0.8
+        self.cropping_mid_margin = 0.6
         self.cropping_den_threshold = 0.5
         self.binary_crop_margin = 0.2
-        self.binary_crop_threshold = 0.6
+        self.binary_crop_threshold = 0.5
         # clustering parameters
-        self.join_length_threshold = 0.3
-        self.merge_dist_threshold = 0.1
+        self.join_length_threshold = 0.8
+        self.join_den_threshold = 0.6
+        self.join_rmse_threshold = 1.1
+        self.merge_dist_threshold = 0.2
         self.merge_den_threshold = 0.6
         self.cluster_dist_threshold = 0.1
-        self.cluster_weight_threshold = 0.5
+        self.cluster_weight_threshold = 0.4
         self.cluster_c = 1.5
         # margin parameters
-        self.margin = None
+        self.margin = 0.05
         self.margin_percentile = 95
         self.margin_dist_ratio = 0.02
         # octree parameters

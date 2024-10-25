@@ -137,7 +137,11 @@ def calculate_density_threshold(density_list, args : SegmentParams):
     std_density = np.std(density_list)
     # calculate the density threshold
     # TODO: This threshold is a heuristic and may need to be adjusted
-    density_threshold = mean_density * args.den_threshold_ratio
+    if args.den_threshold_ratio == -1:
+        density_threshold = mean_density - 2 * std_density
+        density_threshold = max(density_threshold, 0)
+    else:
+        density_threshold = mean_density * args.den_threshold_ratio
     return density_threshold
 
 def preprocess_margin(points, args : SegmentParams):
@@ -145,7 +149,7 @@ def preprocess_margin(points, args : SegmentParams):
     Calculate the margin based on the point cloud.
     """
     # get the 90% quantile of the distance between the points and the center
-    if args.margin is not None:
+    if args.margin != -1:
         args.cluster_dist_threshold = args.margin
         return
     center = np.mean(points, axis=0)
@@ -156,21 +160,15 @@ def preprocess_margin(points, args : SegmentParams):
     args.cluster_dist_threshold = args.margin
 
 
-def calculate_3D_line_score_v3(covered_points_ratio, rmse_list, length,
-                               w_points=1.0, w_RMSE=1.0, w_length=1.0):
+def calculate_3D_line_score_v3(covered_points_ratio, rmse_list, length, weight=1.0):
     """
     Calculate a score for a 3D line based on different factors, using z-score normalization or log scaling.
 
     Parameters:
     - covered_points_ratio: Ratio of points covered by the 3D line.
     - rmse_list: List of RMSE values for each 3D segment.
-    - density_list: List of densities for each 3D segment.
-    - length_list: List of lengths for each 3D segment.
-    - w_points: Weight for the covered points ratio.
-    - w_density: Weight for the point density.
+    - length: Length of the 3D line.
     - w_RMSE: Weight for the RMSE (penalizes high RMSE).
-    - w_length: Weight for the line length (penalizes longer lines).
-    - use_log_scale: Whether to apply log scaling to density and length.
 
     Returns:
     - score: A single score representing the quality of the line.
@@ -178,13 +176,12 @@ def calculate_3D_line_score_v3(covered_points_ratio, rmse_list, length,
     RMSE_scaled = np.mean(rmse_list)
     # Apply normalization to length and RMSE
     # length range is [0, +inf), scale to [0, 1], longer is worse, so need to inverse
-    length_normalized = 1 / np.log(1 + length)
     # larger RMSE is worse, so need to inverse
     RMSE_scaled = 1 / np.log(1 + RMSE_scaled)
-    covered_points_ratio_scale = np.log(1 + covered_points_ratio)
+    line_scale = weight * covered_points_ratio * 100 / np.log(1 + length)
 
     # Calculate the score
-    score = (w_points * covered_points_ratio_scale) + (w_RMSE * RMSE_scaled) + (w_length * length_normalized)
+    score = line_scale * RMSE_scaled
 
     return score
 

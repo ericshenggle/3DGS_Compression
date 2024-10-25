@@ -4,7 +4,6 @@ import os
 import shutil
 import argparse
 import math
-from scipy.spatial.transform import Rotation as R
 
 def select_images_from_json(camera_json_path, target_count=25):
     """

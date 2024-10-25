@@ -1,3 +1,5 @@
+from typing import List
+
 import numpy as np
 from scene.dataset_readers import storePly
 
@@ -148,17 +150,17 @@ class Octree:
             np.array([max_bounds[0], max_bounds[1], max_bounds[2]]),
         ]
         for point in points:
-            if segment3D.distance_point_to_line(point) <= 2 * radius:
+            if segment3D.distance_point_to_line(point) <= 5 * radius:
                 return True
 
         return False
 
 
-    def query(self, segment3D, radius=None):
+    def query(self, segment3D, radius=None) -> np.ndarray:
         """Query the points that intersect with the line segment"""
         found_points = []
         self._query_recursive(self.root, segment3D, found_points, radius)
-        return found_points
+        return np.array(found_points)
 
     def _query_recursive(self, node, segment3D, found_points, radius):
         """recursively query the points that intersect with the line segment"""
@@ -172,11 +174,11 @@ class Octree:
                 for child in node.children:
                     self._query_recursive(child, segment3D, found_points, radius)
 
-    def query_indices(self, segment3D, radius=None):
+    def query_indices(self, segment3D, radius=None) -> np.ndarray:
         """Query the indices of the points that intersect with the line segment"""
         found_indices = []
         self._query_indices_recursive(self.root, segment3D, found_indices, radius)
-        return found_indices
+        return np.array(found_indices)
 
     def _query_indices_recursive(self, node, segment3D, found_indices, radius):
         """recursively query the indices of the points that intersect with the line segment"""
@@ -203,29 +205,21 @@ class Octree:
         for child in node.children:
             self._print_tree_recursive(child, depth + 1)
 
-    def save_ply(self, path):
+    def save_ply(self, path, lines : List, margin):
         """Save the points in the Octree to a PLY file"""
         points = []
         colors = []
-        self._save_ply_recursive(self.root, points, colors)
+        for current in lines:
+            for segment in current.collinear3Dsegments_:
+                point = self.query(segment, radius=margin)
+                color = np.zeros((len(point), 3))
+                # save the color as green
+                color[:, 1] = 255
+                points.extend(point)
+                colors.extend(color)
         points = np.array(points)
         colors = np.array(colors)
         storePly(path, points, colors)
-
-    def _save_ply_recursive(self, node, points, colors):
-        """recursively save the points in the Octree to a list"""
-        if not node:
-            return
-
-        # add the points in the leaf node with different colors
-        if node.is_leaf():
-            color = np.random.randint(0, 255, 3)
-            for point in node.points:
-                points.append(point)
-                colors.append(color)
-        else:
-            for child in node.children:
-                self._save_ply_recursive(child, points, colors)
 
 
 
