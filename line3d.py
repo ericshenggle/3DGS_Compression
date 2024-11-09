@@ -33,7 +33,7 @@ from gaussian_renderer import GaussianModel
 from gaussian_renderer.strategy import transform_points_to_screen_space
 from utils.graphics_utils import fov2focal
 from scene.colmap_loader import rotmat2qvec
-from lines import Line3D
+from lines import Line3D, Segment3D
 from lines.utils import *
 from lines.octree import *
 
@@ -126,14 +126,16 @@ def get_octree(means3D, line3d, args : SegmentParams):
 
 
 def line3d_baseline3D(source_path, model_path, args : SegmentParams):
-    dir_path = os.path.join(source_path, "colmap")
+    dir_path = os.path.join(source_path, "visualSFM")
     line3d = Line3D()
-    line3d.load3DLinesFromTXT(os.path.join(dir_path, "Line3D++"))
+    line3d.load3DLinesFromOBJ(os.path.join(dir_path, "ELSR"))
+    # lines
+    lines = line3d.lines3D()
+
     means3D = load_ply(os.path.join(model_path,
                                     "point_cloud",
                                     "iteration_30000",
                                     "point_cloud.ply"))
-
     # construct the octree
     octree, means3D = get_octree(means3D, line3d, args)
     # octree.save_ply(os.path.join(dir_path, "octree.ply"), line3d.lines3D(), margin=args.margin)
@@ -144,8 +146,6 @@ def line3d_baseline3D(source_path, model_path, args : SegmentParams):
     print(f"Margin: {args.margin}")
     sys.stdout.flush()
 
-    # lines
-    lines = line3d.lines3D()
     before_val = line3d.evaluate3Dlines(dir_path, "before", octree, margin=args.eval_margin)
 
     # calculate the density of the all segment3D
@@ -175,9 +175,7 @@ def line3d_baseline3D(source_path, model_path, args : SegmentParams):
         # merge the collinear segment3D if can
         if len(tmp_coll) > 1:
             # print(f"Start merging Line {i}, segment3D count: {len(tmp_coll)}")
-            coll = merge_all_segments(coll, octree, args, margin=args.margin)
-            # if len(coll) < len(tmp_coll):
-            #     print(f"New number segment3D of Line{i} is {len(coll)}")
+            tmp_coll = merge_all_segments(tmp_coll, octree, args, margin=args.margin)
         line.set_segments(tmp_coll)
     sys.stdout.flush()
 
@@ -196,7 +194,7 @@ def line3d_baseline3D(source_path, model_path, args : SegmentParams):
     sys.stdout.flush()
 
     # save the 3D lines
-    line3d.Write3DlinesToSTL(os.path.join(dir_path, "Line3D++_test"))
+    line3d.Write3DlinesToSTL(os.path.join(dir_path, "ELSR_test"))
 
     after_val = line3d.evaluate3Dlines(dir_path, "after", octree, margin=args.eval_margin)
     print(f"Before: {before_val}")
@@ -206,10 +204,13 @@ def line3d_baseline3D(source_path, model_path, args : SegmentParams):
 
 eval_param_choices = {
     # "den_threshold_ratio": [0.05, 0.1, 0.15, 0.2, 0.25, -1],
-    # "margin": [0.01, 0.02, 0.03, 0.04, 0.05, -1],
+    # "margin": [0.01, 0.03, 0.05, 0.07, 0.09, -1],
     # "join_length_threshold": [0.5, 0.6, 0.7, 0.8, 0.9],
+    # "join_den_threshold": [0.3, 0.4, 0.5, 0.6, 0.7],
+    # "join_rmse_threshold": [0.9, 1.0, 1.1, 1.2, 1.3],
     # "merge_dist_threshold": [0.1, 0.15, 0.2, 0.25, 0.3],
-    "merge_den_threshold": [0.3, 0.4, 0.5, 0.6, 0.7],
+    # "merge_den_threshold": [0.3, 0.4, 0.5, 0.6, 0.7],
+    "eval_margin": [0.05, 0.2]
 }
 
 def eval_segmentParams(dataset : ModelParams, args : SegmentParams):
@@ -231,15 +232,19 @@ def eval_segmentParams(dataset : ModelParams, args : SegmentParams):
     np.random.seed(42)
     indices = np.random.permutation(len(dir_paths))
     dir_paths = [dir_paths[i] for i in indices]
-    test_set = 50
+    test_set = len(dir_paths)
     dir_paths = dir_paths[:test_set] if len(dir_paths) > test_set else dir_paths
     model_paths = [model_paths[i] for i in indices]
     model_paths = model_paths[:test_set] if len(model_paths) > test_set else model_paths
 
     for eval_param, param_values in eval_param_choices.items():
+        param_before = []
+        param_after = []
         param_improvement = []
         for param in param_values:
             print(f"Start evaluating {eval_param} with value {param}")
+            before = []
+            after = []
             improvement = []
             for dir_path, model_path in zip(dir_paths, model_paths):
                 setattr(args, eval_param, param)
@@ -252,38 +257,53 @@ def eval_segmentParams(dataset : ModelParams, args : SegmentParams):
                 score_improvement = (after_val[3] - before_val[3]) / before_val[3] * 100
                 print(f"rmse improvement: {rmse_improvement:.3f}%, points improvement: {points_improvement:.3f}%, " +
                       f"length improvement: {length_improvement:.3f}%, score improvement: {score_improvement:.3f}%")
+                before.append(before_val)
+                after.append(after_val)
                 improvement.append([rmse_improvement, points_improvement, length_improvement, score_improvement])
+            before = np.array(before)
+            after = np.array(after)
             improvement = np.array(improvement)
             # print the dir_path that has the best improvement
             best_idx = np.argmax(improvement[:, 3])
             print(f"Best improvement in {dir_paths[best_idx]}")
+            before = np.mean(before, axis=0)
+            after = np.mean(after, axis=0)
             improvement = np.mean(improvement, axis=0)
+            param_before.append(before)
+            param_after.append(after)
             param_improvement.append(improvement)
 
         # plot all kinds of improvement in one figure
         # plot the bar chart
         # x-axis is the parameter value
-        # y-axis is the value of improvement
-        param_improvement = np.array(param_improvement)
-        ind = np.arange(len(param_values))
-        width = 0.2
+        # y-axis is the value
+        param_dict = {
+            "before": param_before,
+            "after": param_after,
+            "improvement": param_improvement
+        }
+        for key, value in param_dict.items():
+            value = np.array(value)
+            ind = np.arange(len(param_values))
+            width = 0.2
+            plt.figure(figsize=(10, 8))
 
-        b1 = plt.bar(ind - 1.5 * width, param_improvement[:, 0], width, label="RMSE")
-        b2 = plt.bar(ind - 0.5 * width, param_improvement[:, 1], width, label="Coverage")
-        b3 = plt.bar(ind + 0.5 * width, param_improvement[:, 2], width, label="Length")
-        b4 = plt.bar(ind + 1.5* width, param_improvement[:, 3], width, label="Score")
-        plt.bar_label(b1, labels=np.round(param_improvement[:, 0], 2), label_type="edge", fontsize=6, padding=3)
-        plt.bar_label(b2, labels=np.round(param_improvement[:, 1], 2), label_type="edge", fontsize=6, padding=3)
-        plt.bar_label(b3, labels=np.round(param_improvement[:, 2], 2), label_type="edge", fontsize=6, padding=3)
-        plt.bar_label(b4, labels=np.round(param_improvement[:, 3], 2), label_type="edge", fontsize=6, padding=3)
+            b1 = plt.bar(ind - 1.5 * width, value[:, 0], width, label="RMSE")
+            b2 = plt.bar(ind - 0.5 * width, value[:, 1], width, label="Coverage")
+            b3 = plt.bar(ind + 0.5 * width, value[:, 2], width, label="Length")
+            b4 = plt.bar(ind + 1.5 * width, value[:, 3], width, label="Score")
+            plt.bar_label(b1, labels=np.round(value[:, 0], 2), label_type="edge", fontsize=6, padding=3)
+            plt.bar_label(b2, labels=np.round(value[:, 1], 2), label_type="edge", fontsize=6, padding=3)
+            plt.bar_label(b3, labels=np.round(value[:, 2], 2), label_type="edge", fontsize=6, padding=3)
+            plt.bar_label(b4, labels=np.round(value[:, 3], 2), label_type="edge", fontsize=6, padding=3)
 
-        plt.xlabel(eval_param, fontsize=12)
-        plt.ylabel("Improvement (%)", fontsize=12)
-        plt.title(f"Improvement of Line3D++ with different {eval_param}")
-        plt.xticks(ind, param_values)
-        plt.legend(loc="best")
-        # save the figure
-        plt.savefig(os.path.join(source_path, f"improvement_{eval_param}.png"))
+            plt.xlabel(eval_param, fontsize=12)
+            plt.ylabel("Improvement (%)", fontsize=12)
+            plt.title(f"Improvement of Line3D++ with different {eval_param}")
+            plt.xticks(ind, param_values)
+            plt.legend(loc="best")
+            # save the figure
+            plt.savefig(os.path.join(source_path, f"{eval_param}_{key}.png"))
 
 
 if __name__ == "__main__":

@@ -160,15 +160,15 @@ def preprocess_margin(points, args : SegmentParams):
     args.cluster_dist_threshold = args.margin
 
 
-def calculate_3D_line_score_v3(covered_points_ratio, rmse_list, length, weight=1.0):
+def calculate_3D_line_score_v3(covered_points_ratio, rmse_list, length_points_ratio, weight=1.0):
     """
     Calculate a score for a 3D line based on different factors, using z-score normalization or log scaling.
 
     Parameters:
     - covered_points_ratio: Ratio of points covered by the 3D line.
     - rmse_list: List of RMSE values for each 3D segment.
-    - length: Length of the 3D line.
-    - w_RMSE: Weight for the RMSE (penalizes high RMSE).
+    - length_points_ratio: Ratio of the length of the 3D line to the log of the number of points.
+    - weight: Weight for the score calculation.
 
     Returns:
     - score: A single score representing the quality of the line.
@@ -178,7 +178,7 @@ def calculate_3D_line_score_v3(covered_points_ratio, rmse_list, length, weight=1
     # length range is [0, +inf), scale to [0, 1], longer is worse, so need to inverse
     # larger RMSE is worse, so need to inverse
     RMSE_scaled = 1 / np.log(1 + RMSE_scaled)
-    line_scale = weight * covered_points_ratio * 100 / np.log(1 + length)
+    line_scale = weight * covered_points_ratio * 100 / np.log(1 + length_points_ratio)
 
     # Calculate the score
     score = line_scale * RMSE_scaled

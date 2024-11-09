@@ -9,15 +9,16 @@
 # sbatch --gres=gpu:nv:1 -C cuda75 scripts.sh
 # sbatch -w xcnf27 scripts.sh
 
-python convert.py -s /home/c/chenggan/datasets/castle_dense_large
-python convert.py -s /home/c/chenggan/datasets/herzjesu_dense_large
-python train.py -s /home/c/chenggan/datasets/castle_dense_large -m /home/c/chenggan/gaussian-splatting/results/castle_dense_large
-python train.py -s /home/c/chenggan/datasets/herzjesu_dense_large -m /home/c/chenggan/gaussian-splatting/results/herzjesu_dense_large
-python line3d.py -s /home/c/chenggan/datasets/castle_dense_large -m /home/c/chenggan/gaussian-splatting/results/castle_dense_large
-python line3d.py -s /home/c/chenggan/datasets/herzjesu_dense_large -m /home/c/chenggan/gaussian-splatting/results/herzjesu_dense_large
+#python cameraPose_to_nerf.py
+#python train.py -s /home/c/chenggan/datasets/P25 -m /home/c/chenggan/gaussian-splatting/results/P25
+python line3d.py -s /home/c/chenggan/datasets/P25 -m /home/c/chenggan/gaussian-splatting/results/P25 --baseline 2
 
 #python line3d.py -s /home/c/chenggan/datasets/ABC-NEF/ -m /home/c/chenggan/gaussian-splatting/results/ABC-NEF/ --baseline 3
-#python line3d.py -s /home/c/chenggan/datasets/ABC-NEF/00009741 -m /home/c/chenggan/gaussian-splatting/results/ABC-NEF/00009741 --baseline 2
+#python line3d.py -s /home/c/chenggan/datasets/ABC-NEF/00000146 -m /home/c/chenggan/gaussian-splatting/results/ABC-NEF/00000146 --baseline 2
+#python line3d.py -s /home/c/chenggan/datasets/ABC-NEF/00000699 -m /home/c/chenggan/gaussian-splatting/results/ABC-NEF/00000699 --baseline 2
+#python line3d.py -s /home/c/chenggan/datasets/ABC-NEF/00000006 -m /home/c/chenggan/gaussian-splatting/results/ABC-NEF/00000006 --baseline 2
+#python line3d.py -s /home/c/chenggan/datasets/ABC-NEF/00003823 -m /home/c/chenggan/gaussian-splatting/results/ABC-NEF/00003823 --baseline 2
+#python line3d.py -s /home/c/chenggan/datasets/ABC-NEF/00004383 -m /home/c/chenggan/gaussian-splatting/results/ABC-NEF/00004383 --baseline 2
 
 #python line3d.py -s /home/c/chenggan/datasets/myBlender/simple1 -m /home/c/chenggan/gaussian-splatting/results/myBlender/simple1 --baseline 2
 #python line3d.py -s /home/c/chenggan/datasets/myBlender/simple2 -m /home/c/chenggan/gaussian-splatting/results/myBlender/simple2 --baseline 2

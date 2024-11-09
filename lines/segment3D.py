@@ -319,8 +319,8 @@ class Segment3D:
         - balance_threshold: The threshold for stopping the binary search.
         """
         # Step 1: Define the margin for the ends
-        if self.length() * args.cropping_endpoint_margin < 2 * args.margin:
-            return False
+        # if self.length() * args.cropping_endpoint_margin < 0.5 * args.margin:
+        #     return False
         endpoint_margin_length = self.length() * args.cropping_endpoint_margin
         middle_margin_length = self.length() * args.cropping_mid_margin / 2
         # Step 2: Calculate the density near the ends
