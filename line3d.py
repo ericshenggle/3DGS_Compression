@@ -210,7 +210,7 @@ eval_param_choices = {
     # "join_rmse_threshold": [0.9, 1.0, 1.1, 1.2, 1.3],
     # "merge_dist_threshold": [0.1, 0.15, 0.2, 0.25, 0.3],
     # "merge_den_threshold": [0.3, 0.4, 0.5, 0.6, 0.7],
-    "eval_margin": [0.03, 0.05, 0.1, 0.2, 0.5]
+    "eval_margin": [0.1]
 }
 
 def eval_segmentParams(dataset : ModelParams, args : SegmentParams):

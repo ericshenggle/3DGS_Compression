@@ -228,27 +228,27 @@ class Line3D:
         else:
             points_idx_list = []
         length_points_ratio = np.sum(length_list) / np.log(octree.get_num_points())
+        covered_points_percentage = len(points_idx_list) / octree.get_num_points() * 100
         # Calculate the value of 3D lines
         # A better 3D line should have a higher value
         # A better 3D line means that it covers more points and has a higher density
         # A better 3D line should have a lower RMSE
         # A better 3D line should have a shorter length
         # The contribution of each factor to the value of 3D lines should be adjusted before applying this function
-        covered_points_ratio = len(points_idx_list) / octree.get_num_points()
-        score = calculate_3D_line_score_v3(covered_points_ratio, rmse_list, length_points_ratio, weight=1e-1)
+        score = calculate_3D_line_score_v3(covered_points_percentage, rmse_list, length_points_ratio, weight=1e-1)
         if prefix == "before":
-            self.before_optimize_ = [avg_rmse, len(points_idx_list) / octree.get_num_points(), length_points_ratio, score]
+            self.before_optimize_ = [avg_rmse, covered_points_percentage, length_points_ratio, score]
 
         with open(os.path.join(path, f"3Dlines_evaluation.txt"), "w" if prefix == "before" else "a") as f:
             f.write(f"==================== {prefix} optimizing ====================\n")
             f.write(f"Average RMSE: {avg_rmse}\n")
-            f.write(f"Points covered: {len(points_idx_list) / octree.get_num_points() * 100}%\n")
+            f.write(f"Points covered: {covered_points_percentage}%\n")
             f.write(f"Total Length Points ratio: {length_points_ratio}\n")
             f.write(f"Value of 3D lines: {score}\n")
             f.write("\n")
             if prefix == "after" and self.before_optimize_ is not None:
                 rmse_improvement = (self.before_optimize_[0] - avg_rmse) / self.before_optimize_[0] * 100
-                points_improvement = (covered_points_ratio - self.before_optimize_[1]) / self.before_optimize_[1] * 100
+                points_improvement = (covered_points_percentage - self.before_optimize_[1]) / self.before_optimize_[1] * 100
                 length_improvement = (self.before_optimize_[2] - length_points_ratio) / self.before_optimize_[2] * 100
                 score_improvement = (score - self.before_optimize_[3]) / self.before_optimize_[3] * 100
                 f.write(f"RMSE improvement: {rmse_improvement:.3f}%\n")

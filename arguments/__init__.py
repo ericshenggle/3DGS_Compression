@@ -122,7 +122,7 @@ class SegmentParams(ParamGroup):
         self.cluster_weight_threshold = 0.4
         self.cluster_c = 1.5
         # margin parameters
-        self.margin = 0.05
+        self.margin = 0.03
         self.margin_percentile = 95
         self.margin_dist_ratio = 0.02
         # octree parameters

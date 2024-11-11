@@ -11,9 +11,9 @@
 
 #python cameraPose_to_nerf.py
 #python train.py -s /home/c/chenggan/datasets/P25 -m /home/c/chenggan/gaussian-splatting/results/P25
-python line3d.py -s /home/c/chenggan/datasets/P25 -m /home/c/chenggan/gaussian-splatting/results/P25 --baseline 2
+#python line3d.py -s /home/c/chenggan/datasets/P25 -m /home/c/chenggan/gaussian-splatting/results/P25 --baseline 2
 
-#python line3d.py -s /home/c/chenggan/datasets/ABC-NEF/ -m /home/c/chenggan/gaussian-splatting/results/ABC-NEF/ --baseline 3
+python line3d.py -s /home/c/chenggan/datasets/ABC-NEF/ -m /home/c/chenggan/gaussian-splatting/results/ABC-NEF/ --baseline 3
 #python line3d.py -s /home/c/chenggan/datasets/ABC-NEF/00000146 -m /home/c/chenggan/gaussian-splatting/results/ABC-NEF/00000146 --baseline 2
 #python line3d.py -s /home/c/chenggan/datasets/ABC-NEF/00000699 -m /home/c/chenggan/gaussian-splatting/results/ABC-NEF/00000699 --baseline 2
 #python line3d.py -s /home/c/chenggan/datasets/ABC-NEF/00000006 -m /home/c/chenggan/gaussian-splatting/results/ABC-NEF/00000006 --baseline 2
