@@ -106,10 +106,10 @@ def line3d_baseline2D(dataset: ModelParams, iteration: int, write_colmap=True, w
             write_points3D_text(means3D_with_ids, os.path.join(dir_path, "points3D.txt"))
 
         # # write visualSFM format
-        if write_visualSFM:
-            dir_path = os.path.join(dataset.source_path, "visualSFM")
-            makedirs(dir_path, exist_ok=True)
-            write_nvm_file(cam_extrinsics, cam_intrinsics, means3D_with_ids, os.path.join(dir_path, "result.nvm"))
+        # if write_visualSFM:
+        #     dir_path = os.path.join(dataset.source_path, "visualSFM")
+        #     makedirs(dir_path, exist_ok=True)
+        #     write_nvm_file(cam_extrinsics, cam_intrinsics, means3D_with_ids, os.path.join(dir_path, "result.nvm"))
 
 
 def get_octree(means3D, line3d, args : SegmentParams):
@@ -126,9 +126,9 @@ def get_octree(means3D, line3d, args : SegmentParams):
 
 
 def line3d_baseline3D(source_path, model_path, args : SegmentParams):
-    dir_path = os.path.join(source_path, "visualSFM")
+    dir_path = os.path.join(source_path, "colmap")
     line3d = Line3D()
-    line3d.load3DLinesFromOBJ(os.path.join(dir_path, "ELSR"))
+    line3d.load3DLinesFromOBJ(os.path.join(dir_path, "Line3D++"))
     # lines
     lines = line3d.lines3D()
 
@@ -194,7 +194,7 @@ def line3d_baseline3D(source_path, model_path, args : SegmentParams):
     sys.stdout.flush()
 
     # save the 3D lines
-    line3d.Write3DlinesToSTL(os.path.join(dir_path, "ELSR_test"))
+    line3d.Write3DlinesToSTL(os.path.join(dir_path, "Line3D++_test"))
 
     after_val = line3d.evaluate3Dlines(dir_path, "after", octree, margin=args.eval_margin)
     print(f"Before: {before_val}")
@@ -210,7 +210,7 @@ eval_param_choices = {
     # "join_rmse_threshold": [0.9, 1.0, 1.1, 1.2, 1.3],
     # "merge_dist_threshold": [0.1, 0.15, 0.2, 0.25, 0.3],
     # "merge_den_threshold": [0.3, 0.4, 0.5, 0.6, 0.7],
-    "eval_margin": [0.05, 0.2]
+    "eval_margin": [0.03, 0.05, 0.1, 0.2, 0.5]
 }
 
 def eval_segmentParams(dataset : ModelParams, args : SegmentParams):
@@ -316,12 +316,12 @@ if __name__ == "__main__":
     # Set up command line argument parser
     parser = ArgumentParser(description="Getting 3D Lines for 3DGS")
     model = ModelParams(parser, sentinel=True)
+    # SegmentParams contains the parameters for the lineGS algorithm
     seg = SegmentParams(parser)
     parser.add_argument("--iteration", default=30000, type=int)
     parser.add_argument("--quiet", action="store_true")
-    parser.add_argument("--baseline", default=1, type=int)
+    parser.add_argument("--baseline", default=2, type=int)
     parser.add_argument("--use_cuda", action="store_true")
-    parser.add_argument("--wandb", action="store_true")
     parser.add_argument("--write_visualSFM", action="store_true")
     args = parser.parse_args(sys.argv[1:])
 
@@ -335,8 +335,6 @@ if __name__ == "__main__":
 
     if args.baseline == 2:
         # apply the line3D++ cluster algorithm directly on 3DGS
-        if WANDB_FOUND and args.wandb:
-            wandb.init(project="3Dlines", dir=args.source_path, config=vars(args), name="line3D_" + args.model_path.split("/")[-1], group="baseline3D")
         dataset = model.extract(args)
         line3d_baseline3D(dataset.source_path, dataset.model_path, seg.extract(args))
 

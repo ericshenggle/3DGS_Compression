@@ -58,6 +58,7 @@ class ModelParams(ParamGroup):
         self.ground_truth = False
         self._fov_scale = 1.0
         self.randomPly = False
+        self._line_path = ""
         super().__init__(parser, "Loading Parameters", sentinel)
 
     def extract(self, args):
