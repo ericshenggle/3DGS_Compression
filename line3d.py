@@ -138,8 +138,8 @@ def line3d_baseline3D(source_path, model_path, args : SegmentParams):
                                     "point_cloud.ply"))
     # construct the octree
     octree, means3D = get_octree(means3D, line3d, args)
-    # octree.save_ply(os.path.join(dir_path, "octree.ply"), line3d.lines3D(), margin=args.margin)
-    # return
+    save_ply(os.path.join(dir_path, "point_cloud.ply"), means3D)
+    return
 
     # downsample the 3D points
     preprocess_margin(means3D, args)

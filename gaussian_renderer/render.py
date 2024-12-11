@@ -46,7 +46,7 @@ def render_multiModel(viewpoint_camera, pc : list, pipe, bg_color : torch.Tensor
             continue
         mean3D_tmp = pc[i].get_xyz
 
-        print("Model ", i, " has original points: ", len(pc[i].get_xyz), " and after filter: ", len(pc[i].get_xyz[mask]))
+        # print("Model ", i, " has original points: ", len(pc[i].get_xyz), " and after filter: ", len(pc[i].get_xyz[mask]))
         mean3D.append(mean3D_tmp[mask])
         mean2D.append(torch.zeros_like(mean3D[-1], dtype=mean3D[-1].dtype, requires_grad=True, device="cuda") + 0)
         opacity.append(pc[i].get_opacity[mask])

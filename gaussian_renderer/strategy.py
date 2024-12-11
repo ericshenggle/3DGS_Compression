@@ -59,7 +59,7 @@ def distance_based_selection(pc, viewpoint_camera, overlap_ratio=0.1):
     :return: A list of masks, each corresponding to a point cloud in `pc`.
     """
     image_width, image_height = viewpoint_camera.image_width, viewpoint_camera.image_height
-    all_distances = [torch.sqrt(((pc[0].get_xyz - viewpoint_camera.camera_center) ** 2).sum(dim=1))]
+    all_distances = torch.sqrt(((pc[0].get_xyz - viewpoint_camera.camera_center) ** 2).sum(dim=1))
     percentiles = [torch.quantile(all_distances, i / len(pc)) for i in range(len(pc) + 1)]
     
     masks = []
